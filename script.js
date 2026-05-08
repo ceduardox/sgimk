@@ -9,6 +9,8 @@ const state = {
   deviceId: getDeviceId(),
   referralCount: 0,
   goal: 3,
+  maxPrizeAttempts: 3,
+  prizeAttempts: 0,
   selectedPrize: null,
   prizePool: productPool,
   isRevealed: false,
@@ -72,19 +74,29 @@ function selectedPrizeKey() {
   return `sgi_selected_prize_${state.deviceId}`;
 }
 
+function prizeAttemptKey() {
+  return `sgi_prize_attempts_${state.deviceId}`;
+}
+
 function loadStoredPrize() {
   try {
     const stored = JSON.parse(localStorage.getItem(selectedPrizeKey()) || "null");
-    if (!stored || !stored.id) return;
-    state.selectedPrize = stored;
-    state.isRevealed = true;
+    const attempts = Number(localStorage.getItem(prizeAttemptKey()) || "0");
+    state.prizeAttempts = Number.isFinite(attempts) ? Math.max(0, Math.min(state.maxPrizeAttempts, attempts)) : 0;
+    if (stored && stored.id) {
+      state.selectedPrize = stored;
+      state.isRevealed = true;
+      if (state.prizeAttempts === 0) state.prizeAttempts = 1;
+    }
   } catch {
     localStorage.removeItem(selectedPrizeKey());
+    localStorage.removeItem(prizeAttemptKey());
   }
 }
 
 function storeSelectedPrize(prize) {
   localStorage.setItem(selectedPrizeKey(), JSON.stringify(prize));
+  localStorage.setItem(prizeAttemptKey(), String(state.prizeAttempts));
 }
 
 function renderPrizeVisual(container, prize, size = "normal") {
@@ -124,6 +136,8 @@ function render() {
   const complete = count >= state.goal;
   const prize = state.selectedPrize || state.prizePool[0];
   const progressDegrees = Math.min(360, Math.round((Math.min(count, state.goal) / state.goal) * 360));
+  const attemptsLeft = Math.max(0, state.maxPrizeAttempts - state.prizeAttempts);
+  const lockedPrize = state.isRevealed && attemptsLeft === 0;
 
   renderPrizeVisual(els.productIcon, prize);
   els.productName.textContent = state.isRevealed ? prize.name : "Premio oculto";
@@ -134,13 +148,19 @@ function render() {
     ? `<i class="fa-brands fa-google"></i> Reclamar con Google`
     : `<i class="fa-solid fa-lock"></i> Reclamo bloqueado`;
 
-  els.revealButton.classList.toggle("waiting-progress", state.isRevealed);
+  els.revealButton.classList.toggle("waiting-progress", lockedPrize);
   els.revealButton.style.setProperty("--progress", `${progressDegrees}deg`);
-  els.revealButton.disabled = state.isRevealed;
-  els.revealButtonText.textContent = state.isRevealed ? `${Math.min(count, state.goal)}/${state.goal}` : "REVELAR";
-  els.revealButtonHint.textContent = state.isRevealed
-    ? (complete ? "premio listo" : "referidos")
-    : "toca para descubrir";
+  els.revealButton.disabled = lockedPrize;
+  if (lockedPrize) {
+    els.revealButtonText.textContent = `${Math.min(count, state.goal)}/${state.goal}`;
+    els.revealButtonHint.textContent = complete ? "premio listo" : "referidos";
+  } else if (state.isRevealed) {
+    els.revealButtonText.textContent = `INTENTO ${state.prizeAttempts + 1}`;
+    els.revealButtonHint.textContent = `te quedan ${attemptsLeft}`;
+  } else {
+    els.revealButtonText.textContent = "REVELAR";
+    els.revealButtonHint.textContent = "3 intentos";
+  }
 
   els.energySegments.forEach((segment, index) => {
     segment.classList.toggle("filled", index < count);
@@ -233,8 +253,8 @@ function getPublicReferralCode() {
 }
 
 async function revealPrize() {
-  if (state.isRevealed) {
-    showToast("Ya tienes premio potencial. Comparte tu link para reclamarlo.");
+  if (state.prizeAttempts >= state.maxPrizeAttempts) {
+    showToast("Ya usaste tus 3 intentos. Comparte tu link para reclamar.");
     return;
   }
 
@@ -260,19 +280,23 @@ async function revealPrize() {
 
   state.selectedPrize = state.prizePool[current];
   state.isRevealed = true;
+  state.prizeAttempts += 1;
   storeSelectedPrize(state.selectedPrize);
   els.productWindow.classList.remove("spinning");
   updatePrizeModal(state.selectedPrize, false);
   spawnSparks();
   render();
-  showToast("Premio potencial revelado. Comparte para reclamar.");
+  const attemptsLeft = state.maxPrizeAttempts - state.prizeAttempts;
+  showToast(attemptsLeft > 0
+    ? `Premio revelado. Te quedan ${attemptsLeft} intentos.`
+    : "Premio final revelado. Comparte para reclamar.");
 }
 
 function openPrizeModal() {
   els.prizeModal.hidden = false;
   els.prizeModal.classList.add("show");
   els.modalPrizeStage.classList.add("spinning");
-  els.modalPrizeHint.textContent = "Las imagenes giran y se detienen en tu premio.";
+  els.modalPrizeHint.textContent = `Intento ${state.prizeAttempts + 1} de ${state.maxPrizeAttempts}.`;
   updatePrizeModal(state.prizePool[0], true);
 }
 
@@ -284,13 +308,17 @@ function closePrizeModal() {
 }
 
 function updatePrizeModal(prize, isSpinning) {
+  const nextAttempt = Math.min(state.maxPrizeAttempts, state.prizeAttempts + 1);
+  const attemptsLeftAfterThis = Math.max(0, state.maxPrizeAttempts - nextAttempt);
   els.modalPrizeImage.src = prize.image || "";
   els.modalPrizeImage.alt = prize.name;
   els.modalPrizeName.textContent = isSpinning ? "Buscando premio..." : prize.name;
   els.modalPrizeStage.classList.toggle("spinning", isSpinning);
   els.modalPrizeHint.textContent = isSpinning
-    ? "No cierres todavia, la suerte esta corriendo."
-    : "Este es tu premio potencial. Completa los referidos para reclamarlo.";
+    ? `Intento ${state.prizeAttempts + 1} de ${state.maxPrizeAttempts}. No cierres todavia.`
+    : attemptsLeftAfterThis > 0
+      ? `Puedes intentar ${attemptsLeftAfterThis} vez mas o quedarte con este premio.`
+      : "Este es tu premio final. Completa los referidos para reclamarlo.";
 }
 
 function wait(ms) {
