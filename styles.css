@@ -710,6 +710,22 @@ button {
   line-height: 1.22;
 }
 
+.keep-prize-button {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 14px;
+  border: 0;
+  border-radius: 16px;
+  color: #2c1700;
+  background: linear-gradient(180deg, #fff36f, var(--orange));
+  font-weight: 900;
+  box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.24), 0 8px 0 #9c4300, 0 0 22px rgba(255, 212, 59, 0.32);
+}
+
+.keep-prize-button[hidden] {
+  display: none;
+}
+
 .spark {
   position: absolute;
   left: 50%;

@@ -54,6 +54,7 @@ const els = {
   modalPrizeImage: document.querySelector("#modalPrizeImage"),
   modalPrizeName: document.querySelector("#modalPrizeName"),
   modalPrizeHint: document.querySelector("#modalPrizeHint"),
+  keepPrizeButton: document.querySelector("#keepPrizeButton"),
   fxLayer: document.querySelector("#fxLayer"),
   toast: document.querySelector("#toast")
 };
@@ -296,6 +297,7 @@ function openPrizeModal() {
   els.prizeModal.hidden = false;
   els.prizeModal.classList.add("show");
   els.modalPrizeStage.classList.add("spinning");
+  els.keepPrizeButton.hidden = true;
   els.modalPrizeHint.textContent = `Intento ${state.prizeAttempts + 1} de ${state.maxPrizeAttempts}.`;
   updatePrizeModal(state.prizePool[0], true);
 }
@@ -310,15 +312,27 @@ function closePrizeModal() {
 function updatePrizeModal(prize, isSpinning) {
   const nextAttempt = Math.min(state.maxPrizeAttempts, state.prizeAttempts + 1);
   const attemptsLeftAfterThis = Math.max(0, state.maxPrizeAttempts - nextAttempt);
+  const canKeepPrize = state.isRevealed && !isSpinning && state.prizeAttempts < state.maxPrizeAttempts;
   els.modalPrizeImage.src = prize.image || "";
   els.modalPrizeImage.alt = prize.name;
   els.modalPrizeName.textContent = isSpinning ? "Buscando premio..." : prize.name;
   els.modalPrizeStage.classList.toggle("spinning", isSpinning);
+  els.keepPrizeButton.hidden = !canKeepPrize;
   els.modalPrizeHint.textContent = isSpinning
     ? `Intento ${state.prizeAttempts + 1} de ${state.maxPrizeAttempts}. No cierres todavia.`
     : attemptsLeftAfterThis > 0
       ? `Puedes intentar ${attemptsLeftAfterThis} vez mas o quedarte con este premio.`
       : "Este es tu premio final. Completa los referidos para reclamarlo.";
+}
+
+function keepCurrentPrize() {
+  if (!state.selectedPrize) return;
+  state.prizeAttempts = state.maxPrizeAttempts;
+  storeSelectedPrize(state.selectedPrize);
+  updatePrizeModal(state.selectedPrize, false);
+  closePrizeModal();
+  render();
+  showToast("Premio elegido. Comparte tu link para reclamarlo.");
 }
 
 function wait(ms) {
@@ -500,6 +514,7 @@ els.copyButton.addEventListener("click", copyReferral);
 els.whatsappButton.addEventListener("click", shareWhatsApp);
 els.facebookButton.addEventListener("click", shareFacebook);
 els.closePrizeModal.addEventListener("click", closePrizeModal);
+els.keepPrizeButton.addEventListener("click", keepCurrentPrize);
 els.prizeModal.addEventListener("click", (event) => {
   if (event.target === els.prizeModal) closePrizeModal();
 });
