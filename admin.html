@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin SGI Referidos</title>
+    <link rel="icon" href="favicon.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin.css">
+  </head>
+  <body>
+    <main class="admin-shell">
+      <header class="admin-header">
+        <a href="index.html"><i class="fa-solid fa-arrow-left"></i> Volver</a>
+        <div>
+          <span>Panel administrativo</span>
+          <h1>Club de Referidos SGI</h1>
+        </div>
+      </header>
+
+      <section class="admin-grid">
+        <article class="admin-card">
+          <h2>Resumen</h2>
+          <div class="admin-stats">
+            <div><strong id="adminCustomer">-</strong><span>Cliente</span></div>
+            <div><strong id="adminReferrals">0</strong><span>Referidos</span></div>
+            <div><strong id="adminReward">-</strong><span>Premio actual</span></div>
+          </div>
+        </article>
+
+        <article class="admin-card">
+          <h2>Agregar referido</h2>
+          <form id="referralForm" class="admin-form">
+            <label>Nombre
+              <input name="name" required placeholder="Nombre del referido">
+            </label>
+            <label>Telefono
+              <input name="phone" placeholder="Telefono opcional">
+            </label>
+            <button type="submit">Agregar referido</button>
+          </form>
+        </article>
+
+        <article class="admin-card wide">
+          <h2>Referidos registrados</h2>
+          <div id="adminReferralList" class="admin-list"></div>
+        </article>
+
+        <article class="admin-card wide">
+          <h2>Premios y metas</h2>
+          <div id="adminRewards" class="admin-list"></div>
+        </article>
+
+        <article class="admin-card wide">
+          <h2>Misiones</h2>
+          <div id="adminMissions" class="admin-list"></div>
+        </article>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="admin.js"></script>
+  </body>
+</html>
