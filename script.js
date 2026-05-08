@@ -6,7 +6,6 @@ const productPool = [
 ];
 
 const state = {
-  deviceId: getDeviceId(),
   referralCount: 0,
   goal: 3,
   maxPrizeAttempts: 3,
@@ -63,45 +62,6 @@ const els = {
 
 let toastTimer;
 let pollTimer;
-
-function getDeviceId() {
-  const existing = localStorage.getItem("sgi_device_id");
-  if (existing) return existing;
-  const next = crypto.randomUUID ? crypto.randomUUID() : `dev_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  localStorage.setItem("sgi_device_id", next);
-  document.cookie = `sgi_device_id=${next}; max-age=31536000; path=/; samesite=lax`;
-  return next;
-}
-
-function selectedPrizeKey() {
-  return `sgi_selected_prize_${state.deviceId}`;
-}
-
-function prizeAttemptKey() {
-  return `sgi_prize_attempts_${state.deviceId}`;
-}
-
-function loadStoredPrize() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(selectedPrizeKey()) || "null");
-    const attempts = Number(localStorage.getItem(prizeAttemptKey()) || "0");
-    state.prizeAttempts = Number.isFinite(attempts) ? Math.max(0, Math.min(state.maxPrizeAttempts, attempts)) : 0;
-    if (stored && stored.id) {
-      state.selectedPrize = stored;
-      if (stored.image) state.selectedPrize.image = normalizePrizeImage(stored.image);
-      state.isRevealed = true;
-      if (state.prizeAttempts === 0) state.prizeAttempts = 1;
-    }
-  } catch {
-    localStorage.removeItem(selectedPrizeKey());
-    localStorage.removeItem(prizeAttemptKey());
-  }
-}
-
-function storeSelectedPrize(prize) {
-  localStorage.setItem(selectedPrizeKey(), JSON.stringify(prize));
-  localStorage.setItem(prizeAttemptKey(), String(state.prizeAttempts));
-}
 
 function renderPrizeVisual(container, prize, size = "normal") {
   if (prize?.image) {
@@ -204,7 +164,7 @@ function render() {
   els.referralLink.value = `${window.location.host}/r/${publicCode}`;
   els.profileCode.textContent = `Link: /r/${publicCode}`;
   els.profileCount.textContent = `Referidos validos: ${count}`;
-  els.deviceStatus.textContent = `Device ID: ${state.deviceId.slice(0, 8)}...`;
+  els.deviceStatus.textContent = "Sesion guardada en base de datos";
 
   renderReferralList();
   renderLevels();
@@ -299,6 +259,22 @@ async function revealPrize() {
   els.revealButtonHint.textContent = "premio potencial";
   openPrizeModal();
 
+  let result;
+  try {
+    const response = await fetch("/api/prizes/reveal", {
+      method: "POST",
+      headers: { "content-type": "application/json" }
+    });
+    result = await response.json();
+    if (!response.ok) throw new Error(result.error || "No se pudo revelar premio");
+  } catch (error) {
+    els.productWindow.classList.remove("spinning");
+    closePrizeModal();
+    render();
+    showToast(error.message);
+    return;
+  }
+
   const steps = [55, 60, 65, 72, 82, 96, 115, 140, 170, 210, 260, 330, 430, 560];
   let current = Math.floor(Math.random() * state.prizePool.length);
 
@@ -311,11 +287,12 @@ async function revealPrize() {
     updatePrizeModal(item, true);
   }
 
-  state.selectedPrize = state.prizePool[current];
+  state.selectedPrize = result.prize;
   state.isRevealed = true;
-  state.prizeAttempts += 1;
-  storeSelectedPrize(state.selectedPrize);
+  state.prizeAttempts = result.prize_attempts;
   els.productWindow.classList.remove("spinning");
+  renderPrizeVisual(els.productIcon, state.selectedPrize);
+  els.productName.textContent = state.selectedPrize.name;
   updatePrizeModal(state.selectedPrize, false);
   spawnSparks();
   render();
@@ -368,12 +345,21 @@ function retryPrizeFromModal() {
 
 function keepCurrentPrize() {
   if (!state.selectedPrize) return;
-  state.prizeAttempts = state.maxPrizeAttempts;
-  storeSelectedPrize(state.selectedPrize);
-  updatePrizeModal(state.selectedPrize, false);
-  closePrizeModal();
-  render();
-  showToast("Premio elegido. Comparte tu link para reclamarlo.");
+  fetch("/api/prizes/keep", {
+    method: "POST",
+    headers: { "content-type": "application/json" }
+  })
+    .then((response) => response.json().then((result) => ({ response, result })))
+    .then(({ response, result }) => {
+      if (!response.ok) throw new Error(result.error || "No se pudo guardar el premio");
+      state.selectedPrize = result.prize;
+      state.prizeAttempts = result.prize_attempts;
+      updatePrizeModal(state.selectedPrize, false);
+      closePrizeModal();
+      render();
+      showToast("Premio elegido. Comparte tu link para reclamarlo.");
+    })
+    .catch((error) => showToast(error.message));
 }
 
 function wait(ms) {
@@ -396,8 +382,7 @@ function spawnSparks() {
 async function initDevice() {
   await fetch("/api/device/init", {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ device_id: state.deviceId })
+    headers: { "content-type": "application/json" }
   }).catch(() => {});
 }
 
@@ -416,14 +401,13 @@ async function loadPrizePool() {
   if (state.selectedPrize) {
     const freshPrize = state.prizePool.find((prize) => prize.id === state.selectedPrize.id);
     state.selectedPrize = freshPrize || resolvePrizeForDisplay(state.selectedPrize);
-    if (state.selectedPrize?.image) storeSelectedPrize(state.selectedPrize);
   }
 }
 
 async function loadState(options = {}) {
   try {
     const previousCount = state.referralCount;
-    const response = await fetch(`/api/state?device_id=${encodeURIComponent(state.deviceId)}`);
+    const response = await fetch("/api/state");
     if (!response.ok) throw new Error("api");
     const data = await response.json();
     state.customer = data.customer;
@@ -432,6 +416,9 @@ async function loadState(options = {}) {
     state.rewards = data.rewards;
     state.missions = data.missions.filter((mission) => mission.is_active);
     state.goal = data.currentReward?.required_referrals || 3;
+    state.prizeAttempts = Number(data.customer.prize_attempts || 0);
+    state.selectedPrize = data.customer.selected_prize || null;
+    state.isRevealed = Boolean(state.selectedPrize);
 
     if (options.animate && state.referralCount > previousCount) {
       spawnSparks();
@@ -453,7 +440,7 @@ async function validateReferralVisit() {
     const response = await fetch("/api/referrals/convert", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ referral_code: ref, device_id: state.deviceId, name })
+      body: JSON.stringify({ referral_code: ref, name })
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "No se pudo validar");
@@ -483,10 +470,8 @@ async function claimWithGoogle() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        device_id: state.deviceId,
         google_email: googleEmail,
-        google_subject: `demo:${googleEmail}`,
-        selected_prize: state.selectedPrize
+        google_subject: `demo:${googleEmail}`
       })
     });
     showToast("Solicitud de reclamo creada. Admin debe aprobar entrega.");
@@ -510,7 +495,6 @@ async function customizeReferralLink() {
       body: JSON.stringify({
         google_email: googleEmail,
         google_subject: `demo:${googleEmail}`,
-        device_id: state.deviceId,
         name,
         custom_referral_code: customCode
       })
@@ -565,7 +549,6 @@ document.querySelectorAll("[data-nav]").forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.nav));
 });
 
-loadStoredPrize();
 loadPrizePool().then(() => {
   render();
 });

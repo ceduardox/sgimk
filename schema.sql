@@ -6,6 +6,10 @@ create table if not exists customers (
   device_id text unique,
   google_email text,
   google_subject text,
+  selected_prize_id text,
+  selected_prize_name text,
+  selected_prize_image text,
+  prize_attempts integer not null default 0,
   avatar_url text,
   created_at timestamptz not null default now()
 );
@@ -14,6 +18,10 @@ alter table customers add column if not exists custom_referral_code text unique;
 alter table customers add column if not exists device_id text unique;
 alter table customers add column if not exists google_email text;
 alter table customers add column if not exists google_subject text;
+alter table customers add column if not exists selected_prize_id text;
+alter table customers add column if not exists selected_prize_name text;
+alter table customers add column if not exists selected_prize_image text;
+alter table customers add column if not exists prize_attempts integer not null default 0;
 
 create table if not exists referrals (
   id bigserial primary key,
@@ -80,20 +88,6 @@ create table if not exists missions (
   is_completed boolean not null default true
 );
 
-insert into customers (id, name, referral_code, custom_referral_code, avatar_url)
-values (1, 'Juan Perez', 'u1', 'juanperez', 'icono-sgi.jpg')
-on conflict (id) do update set
-  name = excluded.name,
-  referral_code = case
-    when customers.referral_code is null or customers.referral_code = '' or customers.referral_code = 'juanperez'
-    then excluded.referral_code
-    else customers.referral_code
-  end,
-  custom_referral_code = coalesce(customers.custom_referral_code, excluded.custom_referral_code),
-  avatar_url = excluded.avatar_url;
-
-select setval(pg_get_serial_sequence('customers', 'id'), coalesce((select max(id) from customers), 1), true);
-
 insert into rewards (rank_number, name, prize_name, required_referrals, icon_class, is_locked)
 values
   (1, 'Rango 1', 'Pasta dental', 3, 'fa-solid fa-tooth', false),
@@ -119,9 +113,5 @@ on conflict (id) do update set
   icon_class = excluded.icon_class,
   is_active = excluded.is_active,
   is_completed = excluded.is_completed;
-
-insert into referrals (customer_id, referred_name, referred_phone, status)
-select 1, 'Referido demo', '70000001', 'valid'
-where not exists (select 1 from referrals where customer_id = 1);
 
 update referrals set status = 'valid' where status = 'validado';

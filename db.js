@@ -11,10 +11,6 @@ async function query(text, params) {
 }
 
 async function ensureCustomerForDevice(deviceId) {
-  if (!deviceId) {
-    return 1;
-  }
-
   const existing = await query("select id from customers where device_id = $1", [deviceId]);
   if (existing.rowCount) {
     return existing.rows[0].id;
@@ -61,7 +57,13 @@ async function getClubState(customerId = 1) {
     return {
       customer: {
         ...customer.rows[0],
-        public_referral_code: customer.rows[0].custom_referral_code || customer.rows[0].referral_code
+        public_referral_code: customer.rows[0].custom_referral_code || customer.rows[0].referral_code,
+        selected_prize: customer.rows[0].selected_prize_id ? {
+          id: customer.rows[0].selected_prize_id,
+          name: customer.rows[0].selected_prize_name,
+          image: customer.rows[0].selected_prize_image,
+          level: "bronce"
+        } : null
       },
       referrals: referrals.rows,
       referralCount,

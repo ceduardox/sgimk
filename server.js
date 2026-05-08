@@ -3,6 +3,7 @@ require("dotenv").config();
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const { ensureCustomerForDevice, getClubState, query } = require("./db");
 
 const rootDir = __dirname;
@@ -30,6 +31,38 @@ function sendJson(res, status, payload) {
     "content-length": Buffer.byteLength(body)
   });
   res.end(body);
+}
+
+function parseCookies(req) {
+  return Object.fromEntries(String(req.headers.cookie || "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const separator = part.indexOf("=");
+      if (separator === -1) return [part, ""];
+      return [part.slice(0, separator), decodeURIComponent(part.slice(separator + 1))];
+    }));
+}
+
+function setDeviceCookie(res, deviceId) {
+  res.setHeader("set-cookie", `sgi_device_id=${encodeURIComponent(deviceId)}; Max-Age=31536000; Path=/; SameSite=Lax; HttpOnly`);
+}
+
+function getOrCreateDeviceId(req, res) {
+  const cookies = parseCookies(req);
+  const existing = String(cookies.sgi_device_id || "").trim();
+  if (existing) return existing;
+  const next = crypto.randomUUID();
+  setDeviceCookie(res, next);
+  return next;
+}
+
+async function ensureRequestCustomer(req, res) {
+  const deviceId = getOrCreateDeviceId(req, res);
+  const customerId = await ensureCustomerForDevice(deviceId);
+  await upsertDevice(deviceId, req);
+  return { deviceId, customerId };
 }
 
 function timingSafeEqualString(left, right) {
@@ -198,35 +231,13 @@ async function handleApi(req, res) {
     const level = decodeURIComponent(url.pathname.split("/").pop() || "")
       .toLowerCase()
       .replace(/[^a-z0-9_-]/g, "");
-    const prizeDir = path.join(rootDir, "premios", level);
-
-    fs.readdir(prizeDir, { withFileTypes: true }, (error, entries) => {
-      if (error) {
-        sendJson(res, 200, { prizes: [] });
-        return;
-      }
-
-      const prizes = entries
-        .filter((entry) => entry.isFile())
-        .map((entry) => entry.name)
-        .filter((filename) => [".jpg", ".jpeg", ".png", ".webp"].includes(path.extname(filename).toLowerCase()))
-        .sort((a, b) => a.localeCompare(b))
-        .map((filename) => ({
-          id: `${level}-${path.basename(filename, path.extname(filename)).toLowerCase()}`,
-          name: prizeNameFromFile(filename),
-          level,
-          image: `/premios/${level}/${encodeURIComponent(filename)}`
-        }));
-
-      sendJson(res, 200, { prizes });
-    });
+    const prizes = await getPrizePool(level);
+    sendJson(res, 200, { prizes });
     return;
   }
 
   if (req.method === "GET" && url.pathname === "/api/state") {
-    const deviceId = String(url.searchParams.get("device_id") || "").trim();
-    const customerId = await ensureCustomerForDevice(deviceId);
-    if (deviceId) await upsertDevice(deviceId, req);
+    const { customerId } = await ensureRequestCustomer(req, res);
     const state = await getClubState(customerId);
     sendJson(res, 200, state);
     return;
@@ -253,7 +264,7 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/referrals") {
     if (!requireAdmin(req, res)) return;
     const body = await readBody(req);
-    const customerId = await ensureCustomerForDevice(String(body.device_id || "").trim());
+    const { customerId } = await ensureRequestCustomer(req, res);
     const name = String(body.name || "").trim() || `Referido ${Date.now()}`;
     const phone = String(body.phone || "").trim();
 
@@ -266,10 +277,67 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/device/init") {
-    const body = await readBody(req);
-    const deviceId = String(body.device_id || "").trim();
-    await upsertDevice(deviceId, req);
+    const { deviceId } = await ensureRequestCustomer(req, res);
     sendJson(res, 200, { ok: true, device_id: deviceId });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/prizes/reveal") {
+    const { customerId } = await ensureRequestCustomer(req, res);
+    const customer = await query(
+      "select prize_attempts from customers where id = $1",
+      [customerId]
+    );
+    const attempts = Number(customer.rows[0]?.prize_attempts || 0);
+    if (attempts >= 3) {
+      sendJson(res, 400, { error: "Ya usaste tus 3 intentos" });
+      return;
+    }
+
+    const prizes = await getPrizePool("bronce");
+    if (!prizes.length) {
+      sendJson(res, 500, { error: "No hay premios configurados" });
+      return;
+    }
+
+    const prize = prizes[Math.floor(Math.random() * prizes.length)];
+    const result = await query(
+      `update customers
+       set selected_prize_id = $1,
+           selected_prize_name = $2,
+           selected_prize_image = $3,
+           prize_attempts = prize_attempts + 1
+       where id = $4
+       returning prize_attempts`,
+      [prize.id, prize.name, prize.image, customerId]
+    );
+    sendJson(res, 200, { prize, prize_attempts: result.rows[0].prize_attempts, max_prize_attempts: 3 });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/prizes/keep") {
+    const { customerId } = await ensureRequestCustomer(req, res);
+    const result = await query(
+      `update customers
+       set prize_attempts = 3
+       where id = $1 and selected_prize_id is not null
+       returning selected_prize_id, selected_prize_name, selected_prize_image, prize_attempts`,
+      [customerId]
+    );
+    if (!result.rowCount) {
+      sendJson(res, 400, { error: "Primero revela un premio" });
+      return;
+    }
+    sendJson(res, 200, {
+      prize: {
+        id: result.rows[0].selected_prize_id,
+        name: result.rows[0].selected_prize_name,
+        image: result.rows[0].selected_prize_image,
+        level: "bronce"
+      },
+      prize_attempts: result.rows[0].prize_attempts,
+      max_prize_attempts: 3
+    });
     return;
   }
 
@@ -289,7 +357,7 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/referrals/convert") {
     const body = await readBody(req);
     const referralCode = String(body.referral_code || "").trim();
-    const deviceId = String(body.device_id || "").trim();
+    const { deviceId, customerId: referredCustomerId } = await ensureRequestCustomer(req, res);
     const name = String(body.name || "").trim() || "Visitante referido";
 
     const customer = await query(
@@ -301,13 +369,11 @@ async function handleApi(req, res) {
       return;
     }
 
-    const referredCustomerId = await ensureCustomerForDevice(deviceId);
     if (Number(customer.rows[0].id) === Number(referredCustomerId)) {
       sendJson(res, 400, { error: "No puedes validarte con tu propio link" });
       return;
     }
 
-    await upsertDevice(deviceId, req);
     const risk = await evaluateReferral({ customerId: customer.rows[0].id, deviceId, req });
     const result = await query(
       `insert into referrals
@@ -331,11 +397,14 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/rewards/claim") {
     const body = await readBody(req);
-    const customerId = await ensureCustomerForDevice(String(body.device_id || "").trim());
+    const { customerId } = await ensureRequestCustomer(req, res);
     const googleEmail = String(body.google_email || "").trim();
-    const selectedPrize = body.selected_prize && typeof body.selected_prize === "object" ? body.selected_prize : {};
-    const selectedPrizeName = String(selectedPrize.name || "").trim();
-    const selectedPrizeImage = String(selectedPrize.image || "").trim();
+    const customer = await query(
+      "select selected_prize_name, selected_prize_image from customers where id = $1",
+      [customerId]
+    );
+    const selectedPrizeName = String(customer.rows[0]?.selected_prize_name || "").trim();
+    const selectedPrizeImage = String(customer.rows[0]?.selected_prize_image || "").trim();
     const validCount = await query(
       "select count(*)::int as count from referrals where customer_id = $1 and status = 'valid'",
       [customerId]
@@ -353,7 +422,7 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/profile/link") {
     const body = await readBody(req);
-    const customerId = await ensureCustomerForDevice(String(body.device_id || "").trim());
+    const { customerId } = await ensureRequestCustomer(req, res);
     const googleEmail = String(body.google_email || "").trim().toLowerCase();
     const googleSubject = String(body.google_subject || "").trim() || `demo:${googleEmail}`;
     const requestedCode = String(body.custom_referral_code || "")
@@ -390,8 +459,7 @@ async function handleApi(req, res) {
 
   if (req.method === "DELETE" && url.pathname.startsWith("/api/referrals/")) {
     if (!requireAdmin(req, res)) return;
-    const deviceId = String(url.searchParams.get("device_id") || "").trim();
-    const customerId = await ensureCustomerForDevice(deviceId);
+    const { customerId } = await ensureRequestCustomer(req, res);
     const id = Number(url.pathname.split("/").pop());
     await query("delete from referrals where id = $1 and customer_id = $2", [id, customerId]);
     sendJson(res, 200, { ok: true });
@@ -435,12 +503,43 @@ async function handleApi(req, res) {
 }
 
 function prizeNameFromFile(filename) {
-  return path.basename(filename, path.extname(filename))
+  const cleanName = path.basename(filename, path.extname(filename)).toLowerCase();
+  const knownNames = {
+    detergentebolivar: "Detergente Bolivar",
+    detergenteomo: "Detergente Omo",
+    papelhigienicoperlita: "Papel higienico Perlita",
+    pastadentalcolgate: "Pasta dental Colgate",
+    pastadentaldoctor: "Pasta dental Doctor",
+    servilletaperlita: "Servilleta Perlita"
+  };
+  if (knownNames[cleanName]) return knownNames[cleanName];
+
+  return cleanName
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/[-_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+async function getPrizePool(level) {
+  const prizeDir = path.join(rootDir, "premios", level);
+  try {
+    const entries = await fs.promises.readdir(prizeDir, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+      .filter((filename) => [".jpg", ".jpeg", ".png", ".webp"].includes(path.extname(filename).toLowerCase()))
+      .sort((a, b) => a.localeCompare(b))
+      .map((filename) => ({
+        id: `${level}-${path.basename(filename, path.extname(filename)).toLowerCase()}`,
+        name: prizeNameFromFile(filename),
+        level,
+        image: `/premios/${level}/${encodeURIComponent(filename)}`
+      }));
+  } catch {
+    return [];
+  }
 }
 
 async function getTableCounts(tableNames) {
