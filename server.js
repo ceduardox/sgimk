@@ -7,6 +7,8 @@ const { ensureCustomerForDevice, getClubState, query } = require("./db");
 
 const rootDir = __dirname;
 const port = Number(process.env.PORT || 8080);
+const adminUser = process.env.ADMIN_USER || "admin";
+const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -28,6 +30,52 @@ function sendJson(res, status, payload) {
     "content-length": Buffer.byteLength(body)
   });
   res.end(body);
+}
+
+function timingSafeEqualString(left, right) {
+  const leftBuffer = Buffer.from(String(left));
+  const rightBuffer = Buffer.from(String(right));
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return cryptoSafeCompare(leftBuffer, rightBuffer);
+}
+
+function cryptoSafeCompare(leftBuffer, rightBuffer) {
+  let result = 0;
+  for (let index = 0; index < leftBuffer.length; index += 1) {
+    result |= leftBuffer[index] ^ rightBuffer[index];
+  }
+  return result === 0;
+}
+
+function isAdminAuthorized(req) {
+  const authHeader = String(req.headers.authorization || "");
+  if (!authHeader.startsWith("Basic ")) return false;
+
+  try {
+    const credentials = Buffer.from(authHeader.slice(6), "base64").toString("utf8");
+    const separator = credentials.indexOf(":");
+    if (separator === -1) return false;
+    const username = credentials.slice(0, separator);
+    const password = credentials.slice(separator + 1);
+    return timingSafeEqualString(username, adminUser) && timingSafeEqualString(password, adminPassword);
+  } catch {
+    return false;
+  }
+}
+
+function requireAdmin(req, res) {
+  if (isAdminAuthorized(req)) return true;
+  if (req.url.startsWith("/api/")) {
+    sendJson(res, 401, { error: "Admin no autorizado" });
+    return false;
+  }
+
+  res.writeHead(401, {
+    "www-authenticate": 'Basic realm="SGI Admin", charset="UTF-8"',
+    "content-type": "text/plain; charset=utf-8"
+  });
+  res.end("Admin no autorizado");
+  return false;
 }
 
 function readBody(req) {
@@ -106,6 +154,10 @@ async function evaluateReferral({ customerId, deviceId, req }) {
 
 function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  if (url.pathname === "/admin.html" && !requireAdmin(req, res)) {
+    return;
+  }
+
   if (url.pathname.startsWith("/r/")) {
     const code = encodeURIComponent(url.pathname.slice(3).trim());
     res.writeHead(302, { location: `/index.html?ref=${code}` });
@@ -137,6 +189,10 @@ function serveStatic(req, res) {
 
 async function handleApi(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (url.pathname.startsWith("/api/admin/") && !requireAdmin(req, res)) {
+    return;
+  }
 
   if (req.method === "GET" && url.pathname.startsWith("/api/prizes/")) {
     const level = decodeURIComponent(url.pathname.split("/").pop() || "")
@@ -195,6 +251,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/referrals") {
+    if (!requireAdmin(req, res)) return;
     const body = await readBody(req);
     const customerId = await ensureCustomerForDevice(String(body.device_id || "").trim());
     const name = String(body.name || "").trim() || `Referido ${Date.now()}`;
@@ -332,6 +389,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "DELETE" && url.pathname.startsWith("/api/referrals/")) {
+    if (!requireAdmin(req, res)) return;
     const deviceId = String(url.searchParams.get("device_id") || "").trim();
     const customerId = await ensureCustomerForDevice(deviceId);
     const id = Number(url.pathname.split("/").pop());
@@ -341,6 +399,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "PATCH" && url.pathname.startsWith("/api/missions/")) {
+    if (!requireAdmin(req, res)) return;
     const id = Number(url.pathname.split("/").pop());
     const body = await readBody(req);
     const result = await query(
@@ -356,6 +415,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "PATCH" && url.pathname.startsWith("/api/rewards/")) {
+    if (!requireAdmin(req, res)) return;
     const id = Number(url.pathname.split("/").pop());
     const body = await readBody(req);
     const result = await query(
