@@ -16,6 +16,7 @@ const mimeTypes = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
   ".ico": "image/x-icon",
   ".svg": "image/svg+xml"
 };
@@ -137,6 +138,35 @@ function serveStatic(req, res) {
 async function handleApi(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
+  if (req.method === "GET" && url.pathname.startsWith("/api/prizes/")) {
+    const level = decodeURIComponent(url.pathname.split("/").pop() || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "");
+    const prizeDir = path.join(rootDir, "premios", level);
+
+    fs.readdir(prizeDir, { withFileTypes: true }, (error, entries) => {
+      if (error) {
+        sendJson(res, 200, { prizes: [] });
+        return;
+      }
+
+      const prizes = entries
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name)
+        .filter((filename) => [".jpg", ".jpeg", ".png", ".webp"].includes(path.extname(filename).toLowerCase()))
+        .sort((a, b) => a.localeCompare(b))
+        .map((filename) => ({
+          id: `${level}-${path.basename(filename, path.extname(filename)).toLowerCase()}`,
+          name: prizeNameFromFile(filename),
+          level,
+          image: `/premios/${level}/${encodeURIComponent(filename)}`
+        }));
+
+      sendJson(res, 200, { prizes });
+    });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/state") {
     const deviceId = String(url.searchParams.get("device_id") || "").trim();
     const customerId = await ensureCustomerForDevice(deviceId);
@@ -233,13 +263,19 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const customerId = await ensureCustomerForDevice(String(body.device_id || "").trim());
     const googleEmail = String(body.google_email || "").trim();
+    const selectedPrize = body.selected_prize && typeof body.selected_prize === "object" ? body.selected_prize : {};
+    const selectedPrizeName = String(selectedPrize.name || "").trim();
+    const selectedPrizeImage = String(selectedPrize.image || "").trim();
     const validCount = await query(
       "select count(*)::int as count from referrals where customer_id = $1 and status = 'valid'",
       [customerId]
     );
     const result = await query(
-      "insert into reward_claims (customer_id, google_email, google_subject, status, valid_referrals_count) values ($1, $2, $3, 'pending_google', $4) returning *",
-      [customerId, googleEmail, String(body.google_subject || ""), validCount.rows[0].count]
+      `insert into reward_claims
+        (customer_id, google_email, google_subject, selected_prize_name, selected_prize_image, status, valid_referrals_count)
+       values ($1, $2, $3, $4, $5, 'pending_google', $6)
+       returning *`,
+      [customerId, googleEmail, String(body.google_subject || ""), selectedPrizeName, selectedPrizeImage, validCount.rows[0].count]
     );
     sendJson(res, 201, result.rows[0]);
     return;
@@ -323,6 +359,15 @@ async function handleApi(req, res) {
   }
 
   sendJson(res, 404, { error: "Ruta API no encontrada" });
+}
+
+function prizeNameFromFile(filename) {
+  return path.basename(filename, path.extname(filename))
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 const server = http.createServer(async (req, res) => {

@@ -200,6 +200,7 @@ button {
 }
 
 .product-icon {
+  overflow: hidden;
   display: grid;
   place-items: center;
   width: 74px;
@@ -212,6 +213,18 @@ button {
   box-shadow: 0 0 24px rgba(255, 122, 0, 0.55);
 }
 
+.prize-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: white;
+}
+
+.prize-image.normal {
+  border-radius: 50%;
+}
+
 .product-window strong {
   display: block;
   margin-top: 8px;
@@ -221,6 +234,7 @@ button {
 }
 
 .reveal-button {
+  --progress: 0deg;
   display: grid;
   place-items: center;
   width: 152px;
@@ -238,10 +252,20 @@ button {
   animation: buttonPulse 1.8s ease-in-out infinite;
 }
 
+.reveal-button.waiting-progress {
+  color: white;
+  background:
+    radial-gradient(circle at center, #071030 0 54%, transparent 55%),
+    conic-gradient(var(--green) var(--progress), rgba(255, 255, 255, 0.18) 0),
+    linear-gradient(180deg, #102a70, #061032);
+  box-shadow:
+    inset 0 0 0 10px rgba(5, 10, 38, 0.92),
+    0 0 30px rgba(40, 223, 85, 0.34);
+  animation: progressGlow 1.5s ease-in-out infinite;
+}
+
 .reveal-button[disabled] {
-  filter: grayscale(0.45);
-  opacity: 0.78;
-  animation: none;
+  cursor: default;
 }
 
 .reveal-button span {
@@ -582,6 +606,110 @@ button {
   overflow: hidden;
 }
 
+.prize-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 7, 25, 0.74);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.prize-modal.show {
+  opacity: 1;
+}
+
+.prize-modal[hidden] {
+  display: none;
+}
+
+.prize-modal-card {
+  position: relative;
+  width: min(100%, 390px);
+  padding: 18px;
+  border: 2px solid rgba(25, 221, 255, 0.48);
+  border-radius: 26px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(25, 221, 255, 0.28), transparent 42%),
+    linear-gradient(180deg, #102a70, #061032);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.46), inset 0 2px 0 rgba(255, 255, 255, 0.12);
+  transform: translateY(10px) scale(0.97);
+  transition: transform 180ms ease;
+}
+
+.prize-modal.show .prize-modal-card {
+  transform: translateY(0) scale(1);
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  color: white;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.prize-modal-card h2 {
+  margin: 0 32px 14px;
+  font-family: var(--font-display);
+  color: white;
+  font-size: 2.15rem;
+  font-weight: 400;
+  line-height: 0.96;
+  text-shadow: 0 4px 0 #08236e, 0 0 16px rgba(25, 221, 255, 0.4);
+}
+
+.modal-prize-stage {
+  display: grid;
+  place-items: center;
+  width: min(100%, 270px);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto 12px;
+  padding: 16px;
+  border: 3px solid rgba(255, 212, 59, 0.75);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at center, rgba(255, 212, 59, 0.35), transparent 50%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  box-shadow: 0 0 34px rgba(255, 212, 59, 0.28);
+}
+
+.modal-prize-stage.spinning {
+  animation: prizeStagePulse 180ms linear infinite;
+}
+
+.modal-prize-stage img {
+  width: 100%;
+  height: 100%;
+  border-radius: 18px;
+  object-fit: contain;
+  background: white;
+}
+
+#modalPrizeName {
+  display: block;
+  color: var(--gold);
+  font-size: 1.45rem;
+  line-height: 1.05;
+}
+
+#modalPrizeHint {
+  margin: 8px auto 0;
+  max-width: 280px;
+  color: #c8dcff;
+  line-height: 1.22;
+}
+
 .spark {
   position: absolute;
   left: 50%;
@@ -600,6 +728,16 @@ button {
 @keyframes machineShake {
   0%, 100% { transform: translateX(0); }
   50% { transform: translateX(2px); }
+}
+
+@keyframes progressGlow {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(40, 223, 85, 0.34)); }
+  50% { transform: scale(1.025); filter: drop-shadow(0 0 18px rgba(40, 223, 85, 0.62)); }
+}
+
+@keyframes prizeStagePulse {
+  0%, 100% { transform: translateX(0) scale(1); }
+  50% { transform: translateX(3px) scale(1.015); }
 }
 
 @keyframes segmentPop {

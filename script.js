@@ -1,9 +1,8 @@
 const productPool = [
-  { name: "Pasta dental", icon: "fa-solid fa-tooth", level: "Bronce" },
-  { name: "Jabon premium", icon: "fa-solid fa-soap", level: "Bronce" },
-  { name: "Detergente", icon: "fa-solid fa-bottle-droplet", level: "Cobre" },
-  { name: "Canasta hogar", icon: "fa-solid fa-basket-shopping", level: "Plata" },
-  { name: "Delivery gratis", icon: "fa-solid fa-truck-fast", level: "Bronce" }
+  { id: "fallback-pasta", name: "Pasta dental", icon: "fa-solid fa-tooth", level: "bronce" },
+  { id: "fallback-jabon", name: "Jabon premium", icon: "fa-solid fa-soap", level: "bronce" },
+  { id: "fallback-detergente", name: "Detergente", icon: "fa-solid fa-bottle-droplet", level: "bronce" },
+  { id: "fallback-canasta", name: "Canasta hogar", icon: "fa-solid fa-basket-shopping", level: "bronce" }
 ];
 
 const state = {
@@ -11,6 +10,7 @@ const state = {
   referralCount: 0,
   goal: 3,
   selectedPrize: null,
+  prizePool: productPool,
   isRevealed: false,
   customer: { name: "Jugador SGI", referral_code: "u1" },
   referrals: [],
@@ -46,6 +46,12 @@ const els = {
   whatsappButton: document.querySelector("#whatsappButton"),
   facebookButton: document.querySelector("#facebookButton"),
   copyButton: document.querySelector("#copyButton"),
+  prizeModal: document.querySelector("#prizeModal"),
+  closePrizeModal: document.querySelector("#closePrizeModal"),
+  modalPrizeStage: document.querySelector("#modalPrizeStage"),
+  modalPrizeImage: document.querySelector("#modalPrizeImage"),
+  modalPrizeName: document.querySelector("#modalPrizeName"),
+  modalPrizeHint: document.querySelector("#modalPrizeHint"),
   fxLayer: document.querySelector("#fxLayer"),
   toast: document.querySelector("#toast")
 };
@@ -60,6 +66,34 @@ function getDeviceId() {
   localStorage.setItem("sgi_device_id", next);
   document.cookie = `sgi_device_id=${next}; max-age=31536000; path=/; samesite=lax`;
   return next;
+}
+
+function selectedPrizeKey() {
+  return `sgi_selected_prize_${state.deviceId}`;
+}
+
+function loadStoredPrize() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(selectedPrizeKey()) || "null");
+    if (!stored || !stored.id) return;
+    state.selectedPrize = stored;
+    state.isRevealed = true;
+  } catch {
+    localStorage.removeItem(selectedPrizeKey());
+  }
+}
+
+function storeSelectedPrize(prize) {
+  localStorage.setItem(selectedPrizeKey(), JSON.stringify(prize));
+}
+
+function renderPrizeVisual(container, prize, size = "normal") {
+  if (prize?.image) {
+    container.innerHTML = `<img class="prize-image ${size}" src="${prize.image}" alt="${prize.name}">`;
+    return;
+  }
+
+  container.innerHTML = `<i class="${prize?.icon || "fa-solid fa-gift"}"></i>`;
 }
 
 function validReferrals() {
@@ -88,9 +122,10 @@ function setView(viewName) {
 function render() {
   const count = validReferrals();
   const complete = count >= state.goal;
-  const prize = state.selectedPrize || productPool[0];
+  const prize = state.selectedPrize || state.prizePool[0];
+  const progressDegrees = Math.min(360, Math.round((Math.min(count, state.goal) / state.goal) * 360));
 
-  els.productIcon.innerHTML = `<i class="${prize.icon}"></i>`;
+  renderPrizeVisual(els.productIcon, prize);
   els.productName.textContent = state.isRevealed ? prize.name : "Premio oculto";
   els.progressLabel.textContent = `${Math.min(count, state.goal)}/${state.goal} referidos validos`;
   els.progressHint.textContent = progressMessage();
@@ -99,10 +134,12 @@ function render() {
     ? `<i class="fa-brands fa-google"></i> Reclamar con Google`
     : `<i class="fa-solid fa-lock"></i> Reclamo bloqueado`;
 
-  els.revealButton.disabled = false;
-  els.revealButtonText.textContent = state.isRevealed ? "VER PREMIO" : "REVELAR";
+  els.revealButton.classList.toggle("waiting-progress", state.isRevealed);
+  els.revealButton.style.setProperty("--progress", `${progressDegrees}deg`);
+  els.revealButton.disabled = state.isRevealed;
+  els.revealButtonText.textContent = state.isRevealed ? `${Math.min(count, state.goal)}/${state.goal}` : "REVELAR";
   els.revealButtonHint.textContent = state.isRevealed
-    ? (complete ? "listo para reclamar" : "comparte para reclamar")
+    ? (complete ? "premio listo" : "referidos")
     : "toca para descubrir";
 
   els.energySegments.forEach((segment, index) => {
@@ -196,31 +233,64 @@ function getPublicReferralCode() {
 }
 
 async function revealPrize() {
+  if (state.isRevealed) {
+    showToast("Ya tienes premio potencial. Comparte tu link para reclamarlo.");
+    return;
+  }
+
   if (els.productWindow.classList.contains("spinning")) return;
 
   els.productWindow.classList.add("spinning");
   els.revealButton.disabled = true;
   els.revealButtonText.textContent = "BUSCANDO";
   els.revealButtonHint.textContent = "premio potencial";
+  openPrizeModal();
 
-  const steps = [70, 80, 95, 115, 145, 185, 235, 310, 420];
-  let current = 0;
+  const steps = [55, 60, 65, 72, 82, 96, 115, 140, 170, 210, 260, 330, 430, 560];
+  let current = Math.floor(Math.random() * state.prizePool.length);
 
   for (const delay of steps) {
     await wait(delay);
-    current = (current + 1) % productPool.length;
-    const item = productPool[current];
-    els.productIcon.innerHTML = `<i class="${item.icon}"></i>`;
+    current = (current + 1) % state.prizePool.length;
+    const item = state.prizePool[current];
+    renderPrizeVisual(els.productIcon, item);
     els.productName.textContent = item.name;
+    updatePrizeModal(item, true);
   }
 
-  state.selectedPrize = productPool[current];
+  state.selectedPrize = state.prizePool[current];
   state.isRevealed = true;
+  storeSelectedPrize(state.selectedPrize);
   els.productWindow.classList.remove("spinning");
-  els.revealButton.disabled = false;
+  updatePrizeModal(state.selectedPrize, false);
   spawnSparks();
   render();
-  showToast("Premio potencial revelado. Completa la meta para reclamar.");
+  showToast("Premio potencial revelado. Comparte para reclamar.");
+}
+
+function openPrizeModal() {
+  els.prizeModal.hidden = false;
+  els.prizeModal.classList.add("show");
+  els.modalPrizeStage.classList.add("spinning");
+  els.modalPrizeHint.textContent = "Las imagenes giran y se detienen en tu premio.";
+  updatePrizeModal(state.prizePool[0], true);
+}
+
+function closePrizeModal() {
+  els.prizeModal.classList.remove("show");
+  window.setTimeout(() => {
+    els.prizeModal.hidden = true;
+  }, 180);
+}
+
+function updatePrizeModal(prize, isSpinning) {
+  els.modalPrizeImage.src = prize.image || "";
+  els.modalPrizeImage.alt = prize.name;
+  els.modalPrizeName.textContent = isSpinning ? "Buscando premio..." : prize.name;
+  els.modalPrizeStage.classList.toggle("spinning", isSpinning);
+  els.modalPrizeHint.textContent = isSpinning
+    ? "No cierres todavia, la suerte esta corriendo."
+    : "Este es tu premio potencial. Completa los referidos para reclamarlo.";
 }
 
 function wait(ms) {
@@ -246,6 +316,24 @@ async function initDevice() {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ device_id: state.deviceId })
   }).catch(() => {});
+}
+
+async function loadPrizePool() {
+  try {
+    const response = await fetch("/api/prizes/bronce");
+    if (!response.ok) throw new Error("prizes");
+    const data = await response.json();
+    if (Array.isArray(data.prizes) && data.prizes.length) {
+      state.prizePool = data.prizes;
+    }
+  } catch {
+    state.prizePool = productPool;
+  }
+
+  if (state.selectedPrize) {
+    const freshPrize = state.prizePool.find((prize) => prize.id === state.selectedPrize.id);
+    if (freshPrize) state.selectedPrize = freshPrize;
+  }
 }
 
 async function loadState(options = {}) {
@@ -293,6 +381,11 @@ async function validateReferralVisit() {
 }
 
 async function claimWithGoogle() {
+  if (!state.isRevealed) {
+    showToast("Primero revela tu premio potencial.");
+    return;
+  }
+
   if (state.referralCount < state.goal) {
     showToast("Completa 3 referidos validos antes de reclamar.");
     return;
@@ -305,7 +398,12 @@ async function claimWithGoogle() {
     await fetch("/api/rewards/claim", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ device_id: state.deviceId, google_email: googleEmail, google_subject: `demo:${googleEmail}` })
+      body: JSON.stringify({
+        device_id: state.deviceId,
+        google_email: googleEmail,
+        google_subject: `demo:${googleEmail}`,
+        selected_prize: state.selectedPrize
+      })
     });
     showToast("Solicitud de reclamo creada. Admin debe aprobar entrega.");
   } catch {
@@ -373,10 +471,18 @@ els.validateReferralButton.addEventListener("click", validateReferralVisit);
 els.copyButton.addEventListener("click", copyReferral);
 els.whatsappButton.addEventListener("click", shareWhatsApp);
 els.facebookButton.addEventListener("click", shareFacebook);
+els.closePrizeModal.addEventListener("click", closePrizeModal);
+els.prizeModal.addEventListener("click", (event) => {
+  if (event.target === els.prizeModal) closePrizeModal();
+});
 document.querySelectorAll("[data-nav]").forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.nav));
 });
 
+loadStoredPrize();
+loadPrizePool().then(() => {
+  render();
+});
 initDevice();
 loadState();
 pollTimer = window.setInterval(() => loadState({ animate: true }), 5000);

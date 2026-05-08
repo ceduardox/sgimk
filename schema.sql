@@ -51,10 +51,15 @@ create table if not exists reward_claims (
   customer_id bigint not null references customers(id) on delete cascade,
   google_email text,
   google_subject text,
+  selected_prize_name text,
+  selected_prize_image text,
   status text not null default 'pending_google',
   valid_referrals_count integer not null default 0,
   created_at timestamptz not null default now()
 );
+
+alter table reward_claims add column if not exists selected_prize_name text;
+alter table reward_claims add column if not exists selected_prize_image text;
 
 create table if not exists rewards (
   id bigserial primary key,

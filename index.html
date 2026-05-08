@@ -122,6 +122,20 @@
     </main>
 
     <div class="fx-layer" id="fxLayer" aria-hidden="true"></div>
+    <div class="prize-modal" id="prizeModal" hidden>
+      <div class="prize-modal-card" role="dialog" aria-modal="true" aria-labelledby="prizeModalTitle">
+        <button class="modal-close" id="closePrizeModal" type="button" aria-label="Cerrar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <p class="eyebrow">Suerte de nivel bronce</p>
+        <h2 id="prizeModalTitle">Tu premio potencial</h2>
+        <div class="modal-prize-stage spinning" id="modalPrizeStage">
+          <img id="modalPrizeImage" src="" alt="Producto en sorteo">
+        </div>
+        <strong id="modalPrizeName">Preparando premios...</strong>
+        <p id="modalPrizeHint">Las imagenes giran y se detienen en tu premio.</p>
+      </div>
+    </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="script.js"></script>
