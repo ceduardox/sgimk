@@ -216,6 +216,19 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/admin/reset-test-data") {
+    const body = await readBody(req);
+    if (String(body.confirm || "") !== "BORRAR") {
+      sendJson(res, 400, { error: "Confirmacion invalida" });
+      return;
+    }
+
+    await query("truncate table reward_claims, referrals, device_fingerprints, customers restart identity cascade");
+    const counts = await getTableCounts(["customers", "referrals", "reward_claims", "device_fingerprints", "rewards", "missions"]);
+    sendJson(res, 200, { ok: true, counts });
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/referrals/convert") {
     const body = await readBody(req);
     const referralCode = String(body.referral_code || "").trim();
@@ -368,6 +381,15 @@ function prizeNameFromFile(filename) {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+async function getTableCounts(tableNames) {
+  const entries = [];
+  for (const tableName of tableNames) {
+    const result = await query(`select count(*)::int as count from ${tableName}`);
+    entries.push([tableName, result.rows[0].count]);
+  }
+  return Object.fromEntries(entries);
 }
 
 const server = http.createServer(async (req, res) => {

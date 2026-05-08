@@ -65,6 +65,16 @@ body {
   color: #073a98;
 }
 
+.danger-zone {
+  border: 2px solid rgba(216, 52, 52, 0.28);
+}
+
+.danger-zone p {
+  margin: 0 0 12px;
+  color: #63749b;
+  line-height: 1.28;
+}
+
 .admin-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -111,7 +121,8 @@ body {
 }
 
 .admin-form button,
-.admin-row button {
+.admin-row button,
+.danger-action {
   min-height: 40px;
   border: 0;
   border-radius: 10px;
@@ -149,6 +160,11 @@ body {
 
 .admin-row .danger {
   background: #d83434;
+}
+
+.danger-action {
+  width: 100%;
+  background: linear-gradient(180deg, #ff5d5d, #c51919);
 }
 
 .admin-row .blue {

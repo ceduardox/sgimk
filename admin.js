@@ -6,6 +6,7 @@ const els = {
   referralList: document.querySelector("#adminReferralList"),
   rewards: document.querySelector("#adminRewards"),
   missions: document.querySelector("#adminMissions"),
+  resetTestDataButton: document.querySelector("#resetTestDataButton"),
   toast: document.querySelector("#toast")
 };
 
@@ -99,6 +100,25 @@ els.referralForm.addEventListener("submit", async (event) => {
     });
     els.referralForm.reset();
     showToast("Referido agregado.");
+    await loadAdmin();
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+els.resetTestDataButton.addEventListener("click", async () => {
+  const confirmation = window.prompt("Escribe BORRAR para reiniciar usuarios, referidos, reclamos y dispositivos");
+  if (confirmation !== "BORRAR") {
+    showToast("Reinicio cancelado.");
+    return;
+  }
+
+  try {
+    const result = await api("/api/admin/reset-test-data", {
+      method: "POST",
+      body: JSON.stringify({ confirm: "BORRAR" })
+    });
+    showToast(`Datos reiniciados. Usuarios: ${result.counts.customers}`);
     await loadAdmin();
   } catch (error) {
     showToast(error.message);
