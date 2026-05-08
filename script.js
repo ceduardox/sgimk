@@ -118,6 +118,29 @@ function normalizePrizeImage(src) {
   return src.startsWith("/") ? src : `/${src}`;
 }
 
+function prizeWords(name) {
+  return String(name || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 3);
+}
+
+function resolvePrizeForDisplay(prize) {
+  if (!prize) return state.prizePool[0] || productPool[0];
+  if (prize.image) return prize;
+
+  const words = prizeWords(prize.name);
+  const matchedPrize = state.prizePool.find((candidate) => {
+    const candidateName = String(candidate.name || "").toLowerCase();
+    const candidateId = String(candidate.id || "").toLowerCase();
+    return words.some((word) => candidateName.includes(word) || candidateId.includes(word));
+  });
+
+  return matchedPrize || prize;
+}
+
 function validReferrals() {
   return state.referralCount;
 }
@@ -144,7 +167,7 @@ function setView(viewName) {
 function render() {
   const count = validReferrals();
   const complete = count >= state.goal;
-  const prize = state.selectedPrize || state.prizePool[0];
+  const prize = resolvePrizeForDisplay(state.selectedPrize || state.prizePool[0]);
   const progressDegrees = Math.min(360, Math.round((Math.min(count, state.goal) / state.goal) * 360));
   const attemptsLeft = Math.max(0, state.maxPrizeAttempts - state.prizeAttempts);
   const lockedPrize = state.isRevealed && attemptsLeft === 0;
@@ -392,7 +415,8 @@ async function loadPrizePool() {
 
   if (state.selectedPrize) {
     const freshPrize = state.prizePool.find((prize) => prize.id === state.selectedPrize.id);
-    if (freshPrize) state.selectedPrize = freshPrize;
+    state.selectedPrize = freshPrize || resolvePrizeForDisplay(state.selectedPrize);
+    if (state.selectedPrize?.image) storeSelectedPrize(state.selectedPrize);
   }
 }
 

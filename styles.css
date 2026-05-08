@@ -203,21 +203,23 @@ button {
   overflow: hidden;
   display: grid;
   place-items: center;
-  width: 74px;
-  height: 74px;
+  width: 86px;
+  height: 86px;
   border-radius: 50%;
   color: white;
-  background: linear-gradient(180deg, var(--orange), #d34b00);
-  border: 4px solid rgba(255, 255, 255, 0.72);
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.78)),
+    linear-gradient(180deg, var(--orange), #d34b00);
+  border: 5px solid var(--orange);
   font-size: 2.4rem;
-  box-shadow: 0 0 24px rgba(255, 122, 0, 0.55);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.82), 0 0 24px rgba(255, 122, 0, 0.55);
 }
 
 .prize-image {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   background: white;
 }
 
