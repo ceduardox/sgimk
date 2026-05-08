@@ -54,6 +54,8 @@ const els = {
   modalPrizeImage: document.querySelector("#modalPrizeImage"),
   modalPrizeName: document.querySelector("#modalPrizeName"),
   modalPrizeHint: document.querySelector("#modalPrizeHint"),
+  attemptCounter: document.querySelector("#attemptCounter"),
+  retryPrizeButton: document.querySelector("#retryPrizeButton"),
   keepPrizeButton: document.querySelector("#keepPrizeButton"),
   fxLayer: document.querySelector("#fxLayer"),
   toast: document.querySelector("#toast")
@@ -86,6 +88,7 @@ function loadStoredPrize() {
     state.prizeAttempts = Number.isFinite(attempts) ? Math.max(0, Math.min(state.maxPrizeAttempts, attempts)) : 0;
     if (stored && stored.id) {
       state.selectedPrize = stored;
+      if (stored.image) state.selectedPrize.image = normalizePrizeImage(stored.image);
       state.isRevealed = true;
       if (state.prizeAttempts === 0) state.prizeAttempts = 1;
     }
@@ -102,11 +105,17 @@ function storeSelectedPrize(prize) {
 
 function renderPrizeVisual(container, prize, size = "normal") {
   if (prize?.image) {
-    container.innerHTML = `<img class="prize-image ${size}" src="${prize.image}" alt="${prize.name}">`;
+    container.innerHTML = `<img class="prize-image ${size}" src="${normalizePrizeImage(prize.image)}" alt="${prize.name}">`;
     return;
   }
 
   container.innerHTML = `<i class="${prize?.icon || "fa-solid fa-gift"}"></i>`;
+}
+
+function normalizePrizeImage(src) {
+  if (!src) return "";
+  if (/^https?:\/\//i.test(src)) return src;
+  return src.startsWith("/") ? src : `/${src}`;
 }
 
 function validReferrals() {
@@ -298,6 +307,7 @@ function openPrizeModal() {
   els.prizeModal.classList.add("show");
   els.modalPrizeStage.classList.add("spinning");
   els.keepPrizeButton.hidden = true;
+  els.retryPrizeButton.hidden = true;
   els.modalPrizeHint.textContent = `Intento ${state.prizeAttempts + 1} de ${state.maxPrizeAttempts}.`;
   updatePrizeModal(state.prizePool[0], true);
 }
@@ -313,16 +323,24 @@ function updatePrizeModal(prize, isSpinning) {
   const nextAttempt = Math.min(state.maxPrizeAttempts, state.prizeAttempts + 1);
   const attemptsLeftAfterThis = Math.max(0, state.maxPrizeAttempts - nextAttempt);
   const canKeepPrize = state.isRevealed && !isSpinning && state.prizeAttempts < state.maxPrizeAttempts;
-  els.modalPrizeImage.src = prize.image || "";
+  const canRetry = state.isRevealed && !isSpinning && state.prizeAttempts < state.maxPrizeAttempts;
+  els.attemptCounter.textContent = `Intento ${Math.max(1, state.prizeAttempts || nextAttempt)} de ${state.maxPrizeAttempts}`;
+  els.modalPrizeImage.src = normalizePrizeImage(prize.image);
   els.modalPrizeImage.alt = prize.name;
   els.modalPrizeName.textContent = isSpinning ? "Buscando premio..." : prize.name;
   els.modalPrizeStage.classList.toggle("spinning", isSpinning);
   els.keepPrizeButton.hidden = !canKeepPrize;
+  els.retryPrizeButton.hidden = !canRetry;
   els.modalPrizeHint.textContent = isSpinning
     ? `Intento ${state.prizeAttempts + 1} de ${state.maxPrizeAttempts}. No cierres todavia.`
     : attemptsLeftAfterThis > 0
       ? `Puedes intentar ${attemptsLeftAfterThis} vez mas o quedarte con este premio.`
       : "Este es tu premio final. Completa los referidos para reclamarlo.";
+}
+
+function retryPrizeFromModal() {
+  if (state.prizeAttempts >= state.maxPrizeAttempts) return;
+  revealPrize();
 }
 
 function keepCurrentPrize() {
@@ -514,6 +532,7 @@ els.copyButton.addEventListener("click", copyReferral);
 els.whatsappButton.addEventListener("click", shareWhatsApp);
 els.facebookButton.addEventListener("click", shareFacebook);
 els.closePrizeModal.addEventListener("click", closePrizeModal);
+els.retryPrizeButton.addEventListener("click", retryPrizeFromModal);
 els.keepPrizeButton.addEventListener("click", keepCurrentPrize);
 els.prizeModal.addEventListener("click", (event) => {
   if (event.target === els.prizeModal) closePrizeModal();
