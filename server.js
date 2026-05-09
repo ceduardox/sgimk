@@ -243,6 +243,42 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/admin/state") {
+    if (!requireAdmin(req, res)) return;
+    const customersResult = await query(
+      `select id, name, referral_code, custom_referral_code, google_email, prize_attempts, selected_prize_name, created_at
+       from customers
+       order by id asc`
+    );
+    const customers = customersResult.rows.map((customer) => ({
+      ...customer,
+      public_referral_code: customer.custom_referral_code || customer.referral_code
+    }));
+    const requestedId = Number(url.searchParams.get("customer_id"));
+    const selected = customers.find((customer) => Number(customer.id) === requestedId) || customers[0];
+
+    if (!selected) {
+      const [rewards, missions] = await Promise.all([
+        query("select * from rewards order by required_referrals asc"),
+        query("select * from missions order by id asc")
+      ]);
+      sendJson(res, 200, {
+        customer: null,
+        customers: [],
+        referrals: [],
+        referralCount: 0,
+        currentReward: rewards.rows[0] || null,
+        rewards: rewards.rows,
+        missions: missions.rows
+      });
+      return;
+    }
+
+    const state = await getClubState(selected.id);
+    sendJson(res, 200, { ...state, customers });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname.startsWith("/api/referrers/")) {
     const code = decodeURIComponent(url.pathname.split("/").pop());
     const result = await query(
@@ -264,7 +300,10 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/referrals") {
     if (!requireAdmin(req, res)) return;
     const body = await readBody(req);
-    const { customerId } = await ensureRequestCustomer(req, res);
+    const requestedCustomerId = Number(body.customer_id);
+    const customerId = Number.isFinite(requestedCustomerId) && requestedCustomerId > 0
+      ? requestedCustomerId
+      : (await ensureRequestCustomer(req, res)).customerId;
     const name = String(body.name || "").trim() || `Referido ${Date.now()}`;
     const phone = String(body.phone || "").trim();
 
@@ -459,9 +498,8 @@ async function handleApi(req, res) {
 
   if (req.method === "DELETE" && url.pathname.startsWith("/api/referrals/")) {
     if (!requireAdmin(req, res)) return;
-    const { customerId } = await ensureRequestCustomer(req, res);
     const id = Number(url.pathname.split("/").pop());
-    await query("delete from referrals where id = $1 and customer_id = $2", [id, customerId]);
+    await query("delete from referrals where id = $1", [id]);
     sendJson(res, 200, { ok: true });
     return;
   }

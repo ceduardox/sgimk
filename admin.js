@@ -1,5 +1,6 @@
 const els = {
   customer: document.querySelector("#adminCustomer"),
+  customerSelect: document.querySelector("#adminCustomerSelect"),
   referrals: document.querySelector("#adminReferrals"),
   reward: document.querySelector("#adminReward"),
   referralForm: document.querySelector("#referralForm"),
@@ -11,6 +12,7 @@ const els = {
 };
 
 let toastTimer;
+let selectedCustomerId = "";
 
 function showToast(message) {
   window.clearTimeout(toastTimer);
@@ -33,7 +35,9 @@ async function api(path, options) {
 
 async function loadAdmin() {
   try {
-    const state = await api("/api/state");
+    const suffix = selectedCustomerId ? `?customer_id=${encodeURIComponent(selectedCustomerId)}` : "";
+    const state = await api(`/api/admin/state${suffix}`);
+    selectedCustomerId = state.customer?.id ? String(state.customer.id) : "";
     renderAdmin(state);
   } catch (error) {
     showToast(`No se pudo cargar DB: ${error.message}`);
@@ -41,7 +45,15 @@ async function loadAdmin() {
 }
 
 function renderAdmin(state) {
-  els.customer.textContent = state.customer.name;
+  els.customerSelect.innerHTML = state.customers.length
+    ? state.customers.map((customer) => `
+      <option value="${customer.id}" ${String(customer.id) === String(state.customer.id) ? "selected" : ""}>
+        ${customer.name} - /r/${customer.public_referral_code}
+      </option>
+    `).join("")
+    : `<option value="">Sin usuarios</option>`;
+
+  els.customer.textContent = state.customer?.name || "-";
   els.referrals.textContent = String(state.referralCount);
   els.reward.textContent = state.currentReward?.prize_name || "-";
 
@@ -95,7 +107,8 @@ els.referralForm.addEventListener("submit", async (event) => {
       method: "POST",
       body: JSON.stringify({
         name: formData.get("name"),
-        phone: formData.get("phone")
+        phone: formData.get("phone"),
+        customer_id: selectedCustomerId
       })
     });
     els.referralForm.reset();
@@ -104,6 +117,11 @@ els.referralForm.addEventListener("submit", async (event) => {
   } catch (error) {
     showToast(error.message);
   }
+});
+
+els.customerSelect.addEventListener("change", async () => {
+  selectedCustomerId = els.customerSelect.value;
+  await loadAdmin();
 });
 
 els.resetTestDataButton.addEventListener("click", async () => {
