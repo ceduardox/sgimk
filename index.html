@@ -143,6 +143,22 @@
         </button>
       </div>
     </div>
+    <div class="image-viewer" id="imageViewer" hidden>
+      <div class="image-viewer-card" role="dialog" aria-modal="true" aria-labelledby="viewerPrizeName">
+        <button class="modal-close" id="closeImageViewer" type="button" aria-label="Cerrar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <strong id="viewerPrizeName">Premio</strong>
+        <div class="viewer-stage">
+          <img id="viewerPrizeImage" src="" alt="Premio seleccionado">
+        </div>
+        <div class="viewer-actions">
+          <button id="zoomOutButton" type="button"><i class="fa-solid fa-minus"></i></button>
+          <button id="zoomResetButton" type="button">100%</button>
+          <button id="zoomInButton" type="button"><i class="fa-solid fa-plus"></i></button>
+        </div>
+      </div>
+    </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="script.js"></script>

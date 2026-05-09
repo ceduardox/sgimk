@@ -56,6 +56,13 @@ const els = {
   attemptCounter: document.querySelector("#attemptCounter"),
   retryPrizeButton: document.querySelector("#retryPrizeButton"),
   keepPrizeButton: document.querySelector("#keepPrizeButton"),
+  imageViewer: document.querySelector("#imageViewer"),
+  closeImageViewer: document.querySelector("#closeImageViewer"),
+  viewerPrizeName: document.querySelector("#viewerPrizeName"),
+  viewerPrizeImage: document.querySelector("#viewerPrizeImage"),
+  zoomOutButton: document.querySelector("#zoomOutButton"),
+  zoomResetButton: document.querySelector("#zoomResetButton"),
+  zoomInButton: document.querySelector("#zoomInButton"),
   fxLayer: document.querySelector("#fxLayer"),
   toast: document.querySelector("#toast")
 };
@@ -64,6 +71,7 @@ let toastTimer;
 let pollTimer;
 let pendingReferralCode = "";
 let pendingReferralConverted = false;
+let viewerZoom = 1;
 
 function renderPrizeVisual(container, prize, size = "normal") {
   if (prize?.image) {
@@ -368,6 +376,40 @@ function keepCurrentPrize() {
     .catch((error) => showToast(error.message));
 }
 
+function openImageViewer() {
+  const prize = resolvePrizeForDisplay(state.selectedPrize);
+  if (!state.isRevealed || !prize?.image) return;
+  viewerZoom = 1;
+  els.viewerPrizeName.textContent = prize.name;
+  els.viewerPrizeImage.src = normalizePrizeImage(prize.image);
+  els.viewerPrizeImage.alt = prize.name;
+  updateViewerZoom();
+  els.imageViewer.hidden = false;
+  els.imageViewer.classList.add("show");
+}
+
+function closeImageViewer() {
+  els.imageViewer.classList.remove("show");
+  window.setTimeout(() => {
+    els.imageViewer.hidden = true;
+  }, 160);
+}
+
+function updateViewerZoom() {
+  els.viewerPrizeImage.style.transform = `scale(${viewerZoom})`;
+  els.zoomResetButton.textContent = `${Math.round(viewerZoom * 100)}%`;
+}
+
+function changeViewerZoom(delta) {
+  viewerZoom = Math.max(1, Math.min(2.8, Number((viewerZoom + delta).toFixed(2))));
+  updateViewerZoom();
+}
+
+function resetViewerZoom() {
+  viewerZoom = 1;
+  updateViewerZoom();
+}
+
 function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -559,6 +601,14 @@ els.facebookButton.addEventListener("click", shareFacebook);
 els.closePrizeModal.addEventListener("click", closePrizeModal);
 els.retryPrizeButton.addEventListener("click", retryPrizeFromModal);
 els.keepPrizeButton.addEventListener("click", keepCurrentPrize);
+els.productWindow.addEventListener("click", openImageViewer);
+els.closeImageViewer.addEventListener("click", closeImageViewer);
+els.zoomOutButton.addEventListener("click", () => changeViewerZoom(-0.25));
+els.zoomInButton.addEventListener("click", () => changeViewerZoom(0.25));
+els.zoomResetButton.addEventListener("click", resetViewerZoom);
+els.imageViewer.addEventListener("click", (event) => {
+  if (event.target === els.imageViewer) closeImageViewer();
+});
 els.prizeModal.addEventListener("click", (event) => {
   if (event.target === els.prizeModal) closePrizeModal();
 });
