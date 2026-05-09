@@ -238,7 +238,9 @@ button {
 .reveal-button {
   --progress: 0deg;
   display: grid;
-  place-items: center;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
   width: 152px;
   height: 152px;
   border: 0;
@@ -279,9 +281,9 @@ button {
 
 .reveal-button small {
   max-width: 96px;
-  margin-top: -26px;
   font-size: 0.72rem;
   font-weight: 900;
+  line-height: 1;
 }
 
 .progress-panel {
