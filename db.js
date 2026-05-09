@@ -11,6 +11,17 @@ async function query(text, params) {
 }
 
 async function ensureCustomerForDevice(deviceId) {
+  const mappedDevice = await query(
+    `select customers.id
+     from device_fingerprints
+     join customers on customers.id = device_fingerprints.customer_id
+     where device_fingerprints.device_id = $1`,
+    [deviceId]
+  );
+  if (mappedDevice.rowCount) {
+    return mappedDevice.rows[0].id;
+  }
+
   const existing = await query("select id from customers where device_id = $1", [deviceId]);
   if (existing.rowCount) {
     return existing.rows[0].id;
@@ -53,15 +64,17 @@ async function getClubState(customerId = 1) {
 
     const referralCount = validReferrals.rows.length;
     const currentReward = rewards.rows.find((reward) => referralCount <= reward.required_referrals) || rewards.rows[rewards.rows.length - 1];
+    const customerData = { ...customer.rows[0] };
+    delete customerData.password_hash;
 
     return {
       customer: {
-        ...customer.rows[0],
-        public_referral_code: customer.rows[0].custom_referral_code || customer.rows[0].referral_code,
-        selected_prize: customer.rows[0].selected_prize_id ? {
-          id: customer.rows[0].selected_prize_id,
-          name: customer.rows[0].selected_prize_name,
-          image: customer.rows[0].selected_prize_image,
+        ...customerData,
+        public_referral_code: customerData.custom_referral_code || customerData.referral_code,
+        selected_prize: customerData.selected_prize_id ? {
+          id: customerData.selected_prize_id,
+          name: customerData.selected_prize_name,
+          image: customerData.selected_prize_image,
           level: "bronce"
         } : null
       },

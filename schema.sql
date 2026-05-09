@@ -6,6 +6,11 @@ create table if not exists customers (
   device_id text unique,
   google_email text,
   google_subject text,
+  email text,
+  whatsapp_country_code text,
+  whatsapp_number text,
+  password_hash text,
+  registered_at timestamptz,
   selected_prize_id text,
   selected_prize_name text,
   selected_prize_image text,
@@ -18,6 +23,11 @@ alter table customers add column if not exists custom_referral_code text unique;
 alter table customers add column if not exists device_id text unique;
 alter table customers add column if not exists google_email text;
 alter table customers add column if not exists google_subject text;
+alter table customers add column if not exists email text;
+alter table customers add column if not exists whatsapp_country_code text;
+alter table customers add column if not exists whatsapp_number text;
+alter table customers add column if not exists password_hash text;
+alter table customers add column if not exists registered_at timestamptz;
 alter table customers add column if not exists selected_prize_id text;
 alter table customers add column if not exists selected_prize_name text;
 alter table customers add column if not exists selected_prize_image text;
@@ -48,6 +58,7 @@ alter table referrals add column if not exists risk_reasons jsonb not null defau
 create table if not exists device_fingerprints (
   id bigserial primary key,
   device_id text not null unique,
+  customer_id bigint references customers(id) on delete set null,
   first_ip text,
   last_ip text,
   user_agent text,
@@ -55,6 +66,8 @@ create table if not exists device_fingerprints (
   first_seen_at timestamptz not null default now(),
   last_seen_at timestamptz not null default now()
 );
+
+alter table device_fingerprints add column if not exists customer_id bigint references customers(id) on delete set null;
 
 create table if not exists reward_claims (
   id bigserial primary key,

@@ -61,7 +61,7 @@ function getOrCreateDeviceId(req, res) {
 async function ensureRequestCustomer(req, res) {
   const deviceId = getOrCreateDeviceId(req, res);
   const customerId = await ensureCustomerForDevice(deviceId);
-  await upsertDevice(deviceId, req);
+  await upsertDevice(deviceId, req, customerId);
   return { deviceId, customerId };
 }
 
@@ -142,17 +142,145 @@ function getClientIp(req) {
   return req.socket.remoteAddress || "";
 }
 
-async function upsertDevice(deviceId, req) {
+function sanitizeProfileCustomer(customer) {
+  if (!customer) return null;
+  const safeCustomer = { ...customer };
+  delete safeCustomer.password_hash;
+  safeCustomer.public_referral_code = safeCustomer.custom_referral_code || safeCustomer.referral_code;
+  return safeCustomer;
+}
+
+function normalizeReferralAlias(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9_-]/g, "");
+}
+
+function normalizePhoneDigits(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function validateRegistrationPayload(body) {
+  const name = String(body.name || "").trim().replace(/\s+/g, " ");
+  const email = String(body.email || body.google_email || "").trim().toLowerCase();
+  const whatsappCountryCode = String(body.whatsapp_country_code || "").trim().replace(/\s+/g, "");
+  const whatsappNumber = normalizePhoneDigits(body.whatsapp_number);
+  const customReferralCode = normalizeReferralAlias(body.custom_referral_code);
+  const password = String(body.password || "");
+
+  if (name.length < 2 || name.length > 60) {
+    return { error: "Escribe un nombre de 2 a 60 caracteres" };
+  }
+
+  if (!/^\+[1-9]\d{0,3}$/.test(whatsappCountryCode)) {
+    return { error: "Codigo de pais invalido. Ejemplo: +591" };
+  }
+
+  if (!/^\d{6,15}$/.test(whatsappNumber)) {
+    return { error: "Numero de WhatsApp invalido. Usa 6 a 15 digitos" };
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: "Correo invalido" };
+  }
+
+  if (!/^[a-z0-9][a-z0-9_-]{2,24}$/.test(customReferralCode)) {
+    return { error: "Alias invalido. Usa 3 a 25 letras, numeros, guion o guion bajo" };
+  }
+
+  if (password.length < 6 || password.length > 72) {
+    return { error: "La contrasena debe tener 6 a 72 caracteres" };
+  }
+
+  return { name, email, whatsappCountryCode, whatsappNumber, customReferralCode, password };
+}
+
+function hashPassword(password) {
+  const iterations = 120000;
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.pbkdf2Sync(password, salt, iterations, 32, "sha256").toString("hex");
+  return `pbkdf2_sha256$${iterations}$${salt}$${hash}`;
+}
+
+function verifyPassword(password, storedHash) {
+  const parts = String(storedHash || "").split("$");
+  if (parts.length !== 4 || parts[0] !== "pbkdf2_sha256") return false;
+  const iterations = Number(parts[1]);
+  const salt = parts[2];
+  const expected = parts[3];
+  if (!Number.isFinite(iterations) || !salt || !expected) return false;
+  const actual = crypto.pbkdf2Sync(String(password || ""), salt, iterations, 32, "sha256").toString("hex");
+  const actualBuffer = Buffer.from(actual, "hex");
+  const expectedBuffer = Buffer.from(expected, "hex");
+  return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
+async function saveRegisteredProfile(customerId, body) {
+  const payload = validateRegistrationPayload(body);
+  if (payload.error) {
+    return { status: 400, payload: { error: payload.error } };
+  }
+
+  const aliasCollision = await query(
+    `select id
+     from customers
+     where (referral_code = $1 or custom_referral_code = $1)
+       and id <> $2
+     limit 1`,
+    [payload.customReferralCode, customerId]
+  );
+  if (aliasCollision.rowCount) {
+    return { status: 409, payload: { error: "Ese alias ya esta en uso. Prueba otro" } };
+  }
+
+  try {
+    const result = await query(
+      `update customers
+       set name = $1,
+           email = $2,
+           google_email = coalesce(google_email, $2),
+           whatsapp_country_code = $3,
+           whatsapp_number = $4,
+           custom_referral_code = $5,
+           password_hash = $6,
+           registered_at = coalesce(registered_at, now())
+       where id = $7
+       returning *`,
+      [
+        payload.name,
+        payload.email,
+        payload.whatsappCountryCode,
+        payload.whatsappNumber,
+        payload.customReferralCode,
+        hashPassword(payload.password),
+        customerId
+      ]
+    );
+
+    return { status: 200, payload: { customer: sanitizeProfileCustomer(result.rows[0]) } };
+  } catch (error) {
+    if (error.code === "23505") {
+      return { status: 409, payload: { error: "Ese alias ya esta en uso. Prueba otro" } };
+    }
+    throw error;
+  }
+}
+
+async function upsertDevice(deviceId, req, customerId = null) {
   if (!deviceId) return;
   await query(
-    `insert into device_fingerprints (device_id, first_ip, last_ip, user_agent)
-     values ($1, $2, $2, $3)
+    `insert into device_fingerprints (device_id, customer_id, first_ip, last_ip, user_agent)
+     values ($1, $2, $3, $3, $4)
      on conflict (device_id) do update set
+       customer_id = coalesce(excluded.customer_id, device_fingerprints.customer_id),
        last_ip = excluded.last_ip,
        user_agent = excluded.user_agent,
        seen_count = device_fingerprints.seen_count + 1,
        last_seen_at = now()`,
-    [deviceId, getClientIp(req), req.headers["user-agent"] || ""]
+    [deviceId, customerId, getClientIp(req), req.headers["user-agent"] || ""]
   );
 }
 
@@ -246,7 +374,7 @@ async function handleApi(req, res) {
   if (req.method === "GET" && url.pathname === "/api/admin/state") {
     if (!requireAdmin(req, res)) return;
     const customersResult = await query(
-      `select id, name, referral_code, custom_referral_code, google_email, prize_attempts, selected_prize_name, created_at
+      `select id, name, referral_code, custom_referral_code, email, whatsapp_country_code, whatsapp_number, registered_at, google_email, prize_attempts, selected_prize_name, created_at
        from customers
        order by id asc`
     );
@@ -489,37 +617,40 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/profile/link") {
     const body = await readBody(req);
     const { customerId } = await ensureRequestCustomer(req, res);
-    const googleEmail = String(body.google_email || "").trim().toLowerCase();
-    const googleSubject = String(body.google_subject || "").trim() || `demo:${googleEmail}`;
-    const requestedCode = String(body.custom_referral_code || "")
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9_\\-]/g, "");
+    const saved = await saveRegisteredProfile(customerId, body);
+    sendJson(res, saved.status, saved.payload);
+    return;
+  }
 
-    if (!googleEmail || !googleEmail.includes("@")) {
-      sendJson(res, 400, { error: "Debes autenticar con Google demo para personalizar link" });
-      return;
-    }
+  if (req.method === "POST" && url.pathname === "/api/profile/register") {
+    const body = await readBody(req);
+    const { customerId } = await ensureRequestCustomer(req, res);
+    const saved = await saveRegisteredProfile(customerId, body);
+    sendJson(res, saved.status, saved.payload);
+    return;
+  }
 
-    if (!/^[a-z0-9][a-z0-9_-]{2,24}$/.test(requestedCode)) {
-      sendJson(res, 400, { error: "Alias invalido. Usa 3 a 25 letras, numeros, guion o guion bajo" });
-      return;
-    }
-
+  if (req.method === "POST" && url.pathname === "/api/profile/login") {
+    const body = await readBody(req);
+    const { deviceId } = await ensureRequestCustomer(req, res);
+    const email = String(body.email || "").trim().toLowerCase();
+    const password = String(body.password || "");
     const result = await query(
-      `update customers
-       set custom_referral_code = $1, google_email = $2, google_subject = $3, name = coalesce(nullif($4, ''), name)
-       where id = $5
-       returning id, name, referral_code, custom_referral_code, google_email`,
-      [requestedCode, googleEmail, googleSubject, String(body.name || "").trim(), customerId]
+      `select *
+       from customers
+       where email = $1 or google_email = $1
+       order by registered_at desc nulls last, id desc
+       limit 1`,
+      [email]
     );
 
-    sendJson(res, 200, {
-      customer: {
-        ...result.rows[0],
-        public_referral_code: result.rows[0].custom_referral_code || result.rows[0].referral_code
-      }
-    });
+    if (!result.rowCount || !verifyPassword(password, result.rows[0].password_hash)) {
+      sendJson(res, 401, { error: "Correo o contrasena incorrectos" });
+      return;
+    }
+
+    await upsertDevice(deviceId, req, result.rows[0].id);
+    sendJson(res, 200, { customer: sanitizeProfileCustomer(result.rows[0]) });
     return;
   }
 

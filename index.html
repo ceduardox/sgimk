@@ -129,9 +129,74 @@
             <small id="deviceStatus">Dispositivo protegido</small>
           </div>
         </div>
-        <button class="profile-link-button" id="customizeLinkButton" type="button">
-          <i class="fa-brands fa-google"></i> Personalizar link con Google
-        </button>
+        <form class="profile-form" id="profileForm">
+          <label>
+            Nombre para mostrar
+            <input id="profileInputName" name="name" autocomplete="name" placeholder="Maria Pepita" required>
+          </label>
+          <div class="profile-phone-row">
+            <label>
+              Pais
+              <input id="profileCountryCode" name="whatsapp_country_code" inputmode="tel" autocomplete="tel-country-code" placeholder="+591" required>
+            </label>
+            <label>
+              WhatsApp
+              <input id="profileWhatsapp" name="whatsapp_number" inputmode="tel" autocomplete="tel-national" placeholder="70000000" required>
+            </label>
+          </div>
+          <label>
+            Correo
+            <input id="profileEmail" name="email" type="email" autocomplete="email" placeholder="correo@ejemplo.com" required>
+          </label>
+          <label>
+            Tu alias de referido
+            <div class="alias-field">
+              <span>/r/</span>
+              <input id="profileAlias" name="custom_referral_code" autocomplete="username" placeholder="mariapepita" required>
+            </div>
+          </label>
+          <label>
+            Contrasena
+            <div class="password-field">
+              <input id="profilePassword" name="password" type="password" autocomplete="new-password" placeholder="Minimo 6 caracteres" required>
+              <button type="button" data-password-toggle="profilePassword" aria-label="Ver contrasena">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+          </label>
+          <label>
+            Repite la contrasena
+            <div class="password-field">
+              <input id="profilePasswordConfirm" name="password_confirm" type="password" autocomplete="new-password" placeholder="Confirma tu clave" required>
+              <button type="button" data-password-toggle="profilePasswordConfirm" aria-label="Ver contrasena">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+          </label>
+          <small class="profile-note">Tu link generico sigue funcionando. El alias nuevo se suma a la misma cuenta y conserva tus referidos.</small>
+          <button class="profile-link-button" id="customizeLinkButton" type="submit">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Guardar mi link personalizado
+          </button>
+        </form>
+        <form class="profile-form login-form" id="loginForm">
+          <div class="mini-divider"><span>Ya tengo cuenta</span></div>
+          <label>
+            Correo
+            <input id="loginEmail" name="email" type="email" autocomplete="email" placeholder="correo@ejemplo.com" required>
+          </label>
+          <label>
+            Contrasena
+            <div class="password-field">
+              <input id="loginPassword" name="password" type="password" autocomplete="current-password" placeholder="Tu clave" required>
+              <button type="button" data-password-toggle="loginPassword" aria-label="Ver contrasena">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+          </label>
+          <button class="login-link-button" id="loginButton" type="submit">
+            <i class="fa-solid fa-right-to-bracket"></i> Entrar y recuperar mi link
+          </button>
+        </form>
       </section>
 
       <section class="referred-panel" id="referredPanel" hidden>

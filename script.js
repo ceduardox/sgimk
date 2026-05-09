@@ -45,7 +45,19 @@ const els = {
   profileCode: document.querySelector("#profileCode"),
   profileCount: document.querySelector("#profileCount"),
   deviceStatus: document.querySelector("#deviceStatus"),
+  profileForm: document.querySelector("#profileForm"),
+  profileInputName: document.querySelector("#profileInputName"),
+  profileCountryCode: document.querySelector("#profileCountryCode"),
+  profileWhatsapp: document.querySelector("#profileWhatsapp"),
+  profileEmail: document.querySelector("#profileEmail"),
+  profileAlias: document.querySelector("#profileAlias"),
+  profilePassword: document.querySelector("#profilePassword"),
+  profilePasswordConfirm: document.querySelector("#profilePasswordConfirm"),
   customizeLinkButton: document.querySelector("#customizeLinkButton"),
+  loginForm: document.querySelector("#loginForm"),
+  loginEmail: document.querySelector("#loginEmail"),
+  loginPassword: document.querySelector("#loginPassword"),
+  loginButton: document.querySelector("#loginButton"),
   referredPanel: document.querySelector("#referredPanel"),
   inviterCode: document.querySelector("#inviterCode"),
   validateReferralButton: document.querySelector("#validateReferralButton"),
@@ -84,6 +96,8 @@ let pendingReferralCode = "";
 let pendingReferralConverted = false;
 let viewerZoom = 1;
 let completionShownForGoal = 0;
+let profileFormTouched = false;
+let profileFormHydrated = false;
 
 function renderPrizeVisual(container, prize, size = "normal") {
   if (prize?.image) {
@@ -186,12 +200,25 @@ function render() {
   els.referralLink.value = `${window.location.origin}/r/${publicCode}`;
   els.profileCode.textContent = `Link: /r/${publicCode}`;
   els.profileCount.textContent = `Referidos validos: ${count}`;
-  els.deviceStatus.textContent = "Sesion guardada en base de datos";
+  els.deviceStatus.textContent = state.customer.registered_at
+    ? "Perfil registrado en base de datos"
+    : "Sesion guardada en base de datos";
+  hydrateProfileForm();
 
   renderReferralList();
   renderLevels();
   renderMissions();
   setupReferralLanding();
+}
+
+function hydrateProfileForm() {
+  if (!els.profileForm || profileFormTouched || profileFormHydrated) return;
+  els.profileInputName.value = state.customer.name || "";
+  els.profileCountryCode.value = state.customer.whatsapp_country_code || "+591";
+  els.profileWhatsapp.value = state.customer.whatsapp_number || "";
+  els.profileEmail.value = state.customer.email || state.customer.google_email || "";
+  els.profileAlias.value = state.customer.custom_referral_code || "";
+  profileFormHydrated = true;
 }
 
 function renderReferralList() {
@@ -578,32 +605,79 @@ async function claimWithGoogle() {
   }
 }
 
-async function customizeReferralLink() {
-  const googleEmail = window.prompt("Demo Google: escribe tu Gmail para autenticar el cambio");
-  if (!googleEmail) return;
-
-  const name = window.prompt("Nombre para mostrar en tu perfil", state.customer.name || "");
-  const customCode = window.prompt("Elige tu alias para el link, ejemplo: juanperez");
-  if (!customCode) return;
+async function customizeReferralLink(event) {
+  event.preventDefault();
+  const password = els.profilePassword.value;
+  const passwordConfirm = els.profilePasswordConfirm.value;
+  if (password !== passwordConfirm) {
+    showToast("Las contrasenas no coinciden.");
+    return;
+  }
 
   try {
-    const response = await fetch("/api/profile/link", {
+    els.customizeLinkButton.disabled = true;
+    const response = await fetch("/api/profile/register", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        google_email: googleEmail,
-        google_subject: `demo:${googleEmail}`,
-        name,
-        custom_referral_code: customCode
+        name: els.profileInputName.value,
+        whatsapp_country_code: els.profileCountryCode.value,
+        whatsapp_number: els.profileWhatsapp.value,
+        email: els.profileEmail.value,
+        custom_referral_code: els.profileAlias.value,
+        password
       })
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "No se pudo cambiar el link");
+    if (!response.ok) throw new Error(result.error || "No se pudo registrar el perfil");
     state.customer = result.customer;
+    els.profilePassword.value = "";
+    els.profilePasswordConfirm.value = "";
+    profileFormTouched = false;
+    profileFormHydrated = false;
     render();
-    showToast("Link personalizado actualizado.");
+    showToast("Perfil guardado. Tu link personalizado ya funciona.");
   } catch (error) {
     showToast(error.message);
+  } finally {
+    els.customizeLinkButton.disabled = false;
+  }
+}
+
+function togglePasswordVisibility(button) {
+  const input = document.querySelector(`#${button.dataset.passwordToggle}`);
+  if (!input) return;
+  const nextType = input.type === "password" ? "text" : "password";
+  input.type = nextType;
+  button.innerHTML = nextType === "password"
+    ? `<i class="fa-solid fa-eye"></i>`
+    : `<i class="fa-solid fa-eye-slash"></i>`;
+}
+
+async function loginProfile(event) {
+  event.preventDefault();
+  try {
+    els.loginButton.disabled = true;
+    const response = await fetch("/api/profile/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: els.loginEmail.value,
+        password: els.loginPassword.value
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "No se pudo entrar");
+    state.customer = result.customer;
+    els.loginPassword.value = "";
+    profileFormTouched = false;
+    profileFormHydrated = false;
+    await loadState();
+    showToast("Cuenta recuperada. Tu progreso y link estan activos.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    els.loginButton.disabled = false;
   }
 }
 
@@ -656,7 +730,14 @@ function showToast(message) {
 
 els.revealButton.addEventListener("click", revealPrize);
 els.claimButton.addEventListener("click", claimWithGoogle);
-els.customizeLinkButton.addEventListener("click", customizeReferralLink);
+els.profileForm.addEventListener("submit", customizeReferralLink);
+els.profileForm.addEventListener("input", () => {
+  profileFormTouched = true;
+});
+els.loginForm.addEventListener("submit", loginProfile);
+document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+  button.addEventListener("click", () => togglePasswordVisibility(button));
+});
 els.validateReferralButton.addEventListener("click", validateReferralVisit);
 els.copyButton.addEventListener("click", copyReferral);
 els.copyInlineButton.addEventListener("click", copyReferral);
