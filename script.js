@@ -62,7 +62,8 @@ const els = {
 
 let toastTimer;
 let pollTimer;
-const autoValidatedRefs = new Set();
+let pendingReferralCode = "";
+let pendingReferralConverted = false;
 
 function renderPrizeVisual(container, prize, size = "normal") {
   if (prize?.image) {
@@ -240,7 +241,7 @@ function setupReferralLanding() {
 
   els.referredPanel.hidden = false;
   els.inviterCode.textContent = ref;
-  autoValidateReferralVisit(ref);
+  pendingReferralCode = ref;
 }
 
 function getPublicReferralCode() {
@@ -292,6 +293,9 @@ async function revealPrize() {
   state.selectedPrize = result.prize;
   state.isRevealed = true;
   state.prizeAttempts = result.prize_attempts;
+  if (state.prizeAttempts === 1) {
+    convertPendingReferral();
+  }
   els.productWindow.classList.remove("spinning");
   renderPrizeVisual(els.productIcon, state.selectedPrize);
   els.productName.textContent = state.selectedPrize.name;
@@ -433,17 +437,17 @@ async function loadState(options = {}) {
   render();
 }
 
-async function autoValidateReferralVisit(ref) {
-  if (!ref || autoValidatedRefs.has(ref)) return;
-  autoValidatedRefs.add(ref);
-  await submitReferralVisit(ref, "Visitante referido", true);
-}
-
 async function validateReferralVisit() {
   const ref = new URLSearchParams(window.location.search).get("ref");
   if (!ref) return;
   const name = window.prompt("Tu nombre para validar la visita") || "Visitante referido";
   await submitReferralVisit(ref, name, false);
+}
+
+async function convertPendingReferral() {
+  if (!pendingReferralCode || pendingReferralConverted) return;
+  pendingReferralConverted = true;
+  await submitReferralVisit(pendingReferralCode, "Visitante referido", true);
 }
 
 async function submitReferralVisit(ref, name, automatic) {
@@ -456,7 +460,7 @@ async function submitReferralVisit(ref, name, automatic) {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "No se pudo validar");
     showToast(result.status === "valid"
-      ? (automatic ? "Tu visita ya cuenta como referido." : "Visita validada.")
+      ? (automatic ? "Tu premio ya cuenta como referido." : "Visita validada.")
       : `Quedo en estado: ${result.status}`);
     els.referredPanel.hidden = true;
   } catch (error) {
