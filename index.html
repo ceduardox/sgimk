@@ -4,6 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Revelador SGI Market</title>
+    <meta name="description" content="Descubre tu premio SGI Market, comparte tu link y gana productos para el hogar con referidos validos.">
+    <link rel="canonical" href="https://sgimarket.com/">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://sgimarket.com/">
+    <meta property="og:title" content="SGI Market - Club de Referidos">
+    <meta property="og:description" content="Juega, revela tu premio y comparte tu link para ganar productos de SGI Market.">
+    <meta property="og:image" content="https://sgimarket.com/logo-Photoroom.png">
+    <meta property="og:image:alt" content="SGI Market Club de Referidos">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="SGI Market - Club de Referidos">
+    <meta name="twitter:description" content="Revela tu premio y comparte tu link para ganar productos para el hogar.">
+    <meta name="twitter:image" content="https://sgimarket.com/logo-Photoroom.png">
     <link rel="icon" href="favicon.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
@@ -59,6 +71,9 @@
         <div class="link-box">
           <i class="fa-solid fa-link"></i>
           <input id="referralLink" readonly value="127.0.0.1:8080/r/u1">
+          <button class="copy-inline-button" id="copyInlineButton" type="button" aria-label="Copiar link">
+            <i class="fa-regular fa-copy"></i>
+          </button>
         </div>
         <div class="share-grid">
           <button class="wa" id="whatsappButton" type="button"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>
@@ -66,9 +81,22 @@
           <button class="copy" id="copyButton" type="button"><i class="fa-regular fa-copy"></i> Copiar</button>
         </div>
         <div class="referral-status">
-          <h3>Referidos</h3>
-          <div id="referralList"></div>
+          <h3>Ultimos referidos</h3>
+          <div id="referralPreviewList"></div>
         </div>
+      </section>
+
+      <section class="panel-card app-view" data-view="referrals">
+        <div class="section-title">
+          <span>Historial</span>
+          <h2>Mis referidos</h2>
+        </div>
+        <div class="referral-summary">
+          <div><strong id="validReferralTotal">0</strong><span>Validos</span></div>
+          <div><strong id="pendingReferralTotal">0</strong><span>Revision</span></div>
+          <div><strong id="nextGoalTotal">3</strong><span>Meta actual</span></div>
+        </div>
+        <div id="referralList" class="referral-history"></div>
       </section>
 
       <section class="panel-card app-view active" data-view="rewards">
@@ -114,7 +142,7 @@
 
       <nav class="bottom-nav">
         <button class="active" data-nav="home" type="button"><i class="fa-solid fa-house"></i><span>Inicio</span></button>
-        <button data-nav="refer" type="button"><i class="fa-solid fa-share-nodes"></i><span>Referir</span></button>
+        <button data-nav="referrals" type="button"><i class="fa-solid fa-users"></i><span>Mis referidos</span></button>
         <button class="center-tab" data-nav="rewards" type="button"><i class="fa-solid fa-gift"></i><span>Premios</span></button>
         <button data-nav="missions" type="button"><i class="fa-solid fa-bolt"></i><span>Misiones</span></button>
         <button data-nav="profile" type="button"><i class="fa-solid fa-user"></i><span>Perfil</span></button>
@@ -156,6 +184,20 @@
           <button id="zoomOutButton" type="button"><i class="fa-solid fa-minus"></i></button>
           <button id="zoomResetButton" type="button">100%</button>
           <button id="zoomInButton" type="button"><i class="fa-solid fa-plus"></i></button>
+        </div>
+      </div>
+    </div>
+    <div class="level-complete-modal" id="levelCompleteModal" hidden>
+      <div class="level-complete-card" role="dialog" aria-modal="true" aria-labelledby="levelCompleteTitle">
+        <button class="modal-close" id="closeLevelCompleteModal" type="button" aria-label="Cerrar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <i class="fa-solid fa-trophy"></i>
+        <h2 id="levelCompleteTitle">Rango completado</h2>
+        <p id="levelCompleteText">Tu premio ya esta listo. Tambien desbloqueaste el siguiente rango.</p>
+        <div class="level-complete-actions">
+          <button id="completeClaimButton" type="button">Reclamar premio</button>
+          <button id="completeReferralsButton" type="button">Ver referidos</button>
         </div>
       </div>
     </div>

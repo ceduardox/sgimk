@@ -31,7 +31,12 @@ const els = {
   energySegments: [...document.querySelectorAll("#energySegments span")],
   claimButton: document.querySelector("#claimButton"),
   referralLink: document.querySelector("#referralLink"),
+  copyInlineButton: document.querySelector("#copyInlineButton"),
+  referralPreviewList: document.querySelector("#referralPreviewList"),
   referralList: document.querySelector("#referralList"),
+  validReferralTotal: document.querySelector("#validReferralTotal"),
+  pendingReferralTotal: document.querySelector("#pendingReferralTotal"),
+  nextGoalTotal: document.querySelector("#nextGoalTotal"),
   levelRoad: document.querySelector("#levelRoad"),
   missionRows: document.querySelector("#missionRows"),
   navButtons: [...document.querySelectorAll("[data-nav]")],
@@ -63,6 +68,12 @@ const els = {
   zoomOutButton: document.querySelector("#zoomOutButton"),
   zoomResetButton: document.querySelector("#zoomResetButton"),
   zoomInButton: document.querySelector("#zoomInButton"),
+  levelCompleteModal: document.querySelector("#levelCompleteModal"),
+  closeLevelCompleteModal: document.querySelector("#closeLevelCompleteModal"),
+  levelCompleteTitle: document.querySelector("#levelCompleteTitle"),
+  levelCompleteText: document.querySelector("#levelCompleteText"),
+  completeClaimButton: document.querySelector("#completeClaimButton"),
+  completeReferralsButton: document.querySelector("#completeReferralsButton"),
   fxLayer: document.querySelector("#fxLayer"),
   toast: document.querySelector("#toast")
 };
@@ -72,6 +83,7 @@ let pollTimer;
 let pendingReferralCode = "";
 let pendingReferralConverted = false;
 let viewerZoom = 1;
+let completionShownForGoal = 0;
 
 function renderPrizeVisual(container, prize, size = "normal") {
   if (prize?.image) {
@@ -171,7 +183,7 @@ function render() {
 
   els.profileName.textContent = state.customer.name || "Jugador SGI";
   const publicCode = getPublicReferralCode();
-  els.referralLink.value = `${window.location.host}/r/${publicCode}`;
+  els.referralLink.value = `${window.location.origin}/r/${publicCode}`;
   els.profileCode.textContent = `Link: /r/${publicCode}`;
   els.profileCount.textContent = `Referidos validos: ${count}`;
   els.deviceStatus.textContent = "Sesion guardada en base de datos";
@@ -183,27 +195,37 @@ function render() {
 }
 
 function renderReferralList() {
+  const validCount = state.referrals.filter((referral) => referral.status === "valid").length;
+  const pendingCount = state.referrals.filter((referral) => referral.status === "review" || referral.status === "pending").length;
+  els.validReferralTotal.textContent = String(validCount);
+  els.pendingReferralTotal.textContent = String(pendingCount);
+  els.nextGoalTotal.textContent = String(state.goal);
+
   if (!state.referrals.length) {
-    els.referralList.innerHTML = `
+    const empty = `
       <div class="status-row">
         <i class="fa-solid fa-user-plus"></i>
         <div><strong>Sin referidos aun</strong><span>Cuando alguien use tu link, aparecera aqui.</span></div>
         <b class="status-pill">0</b>
       </div>
     `;
+    els.referralPreviewList.innerHTML = empty;
+    els.referralList.innerHTML = empty;
     return;
   }
 
-  els.referralList.innerHTML = state.referrals.slice(0, 8).map((referral) => `
+  const rows = state.referrals.map((referral) => `
     <div class="status-row">
       <i class="fa-solid ${referral.status === "valid" ? "fa-circle-check" : referral.status === "review" ? "fa-triangle-exclamation" : "fa-clock"}"></i>
       <div>
         <strong>${referral.referred_name}</strong>
-        <span>${statusLabel(referral.status)}</span>
+        <span>${statusLabel(referral.status)} - ${formatReferralDate(referral.created_at)}</span>
       </div>
       <b class="status-pill">${referral.status}</b>
     </div>
-  `).join("");
+  `);
+  els.referralPreviewList.innerHTML = rows.slice(0, 3).join("");
+  els.referralList.innerHTML = rows.join("");
 }
 
 function statusLabel(status) {
@@ -213,20 +235,31 @@ function statusLabel(status) {
   return "Pendiente de validacion";
 }
 
-function renderLevels() {
-  const levels = [
-    { name: "Bronce", goal: 3, icon: "fa-solid fa-medal" },
-    { name: "Cobre", goal: 5, icon: "fa-solid fa-shield-halved" },
-    { name: "Plata", goal: 10, icon: "fa-solid fa-crown" }
-  ];
+function formatReferralDate(value) {
+  if (!value) return "reciente";
+  return new Intl.DateTimeFormat("es", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
 
-  els.levelRoad.innerHTML = levels.map((level, index) => `
-    <article class="level-card ${index === 0 ? "active" : ""}">
-      <div class="level-icon"><i class="${level.icon}"></i></div>
-      <div><strong>Nivel ${level.name}</strong><span>${level.goal} referidos validos para premios ${index === 0 ? "iniciales" : "mejores"}.</span></div>
-      <b class="status-pill">${index === 0 ? "Activo" : "Bloqueado"}</b>
+function renderLevels() {
+  const count = validReferrals();
+  els.levelRoad.innerHTML = state.rewards.map((reward, index) => {
+    const previousGoal = index === 0 ? 0 : state.rewards[index - 1].required_referrals;
+    const complete = count >= reward.required_referrals;
+    const active = count >= previousGoal && count < reward.required_referrals;
+    const unlocked = !reward.is_locked && (index === 0 || count >= previousGoal);
+    return `
+    <article class="level-card ${active ? "active" : ""} ${complete ? "complete" : ""}">
+      <div class="level-icon"><i class="${reward.icon_class}"></i></div>
+      <div><strong>${reward.name}: ${reward.prize_name}</strong><span>${reward.required_referrals} referidos validos para este rango.</span></div>
+      <b class="status-pill">${complete ? "Completado" : active ? "Activo" : unlocked ? "Desbloqueado" : "Bloqueado"}</b>
     </article>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function renderMissions() {
@@ -462,6 +495,7 @@ async function loadState(options = {}) {
     state.referrals = data.referrals;
     state.referralCount = data.referralCount;
     state.rewards = data.rewards;
+    state.currentReward = data.currentReward;
     state.missions = data.missions.filter((mission) => mission.is_active);
     state.goal = data.currentReward?.required_referrals || 3;
     state.prizeAttempts = Number(data.customer.prize_attempts || 0);
@@ -471,6 +505,11 @@ async function loadState(options = {}) {
     if (options.animate && state.referralCount > previousCount) {
       spawnSparks();
       showToast("Nuevo referido validado. Energia aumentada.");
+    }
+
+    if (options.animate && previousCount < state.goal && state.referralCount >= state.goal && completionShownForGoal !== state.goal) {
+      completionShownForGoal = state.goal;
+      openLevelCompleteModal();
     }
   } catch {
     state.referralCount = Math.max(state.referralCount, 0);
@@ -569,19 +608,43 @@ async function customizeReferralLink() {
 }
 
 function copyReferral() {
-  navigator.clipboard.writeText(els.referralLink.value).then(() => {
+  const value = els.referralLink.value;
+  navigator.clipboard.writeText(value).then(() => {
     showToast("Link copiado.");
-  }).catch(() => showToast("No se pudo copiar."));
+  }).catch(() => {
+    els.referralLink.select();
+    document.execCommand("copy");
+    showToast("Link copiado.");
+  });
 }
 
 function shareWhatsApp() {
-  const text = encodeURIComponent(`Entra a SGI Market y descubre tu premio: http://${els.referralLink.value}`);
+  const text = encodeURIComponent(`Entra a SGI Market y descubre tu premio: ${els.referralLink.value}`);
   window.open(`https://wa.me/?text=${text}`, "_blank");
 }
 
 function shareFacebook() {
-  const url = encodeURIComponent(`http://${els.referralLink.value}`);
+  const url = encodeURIComponent(els.referralLink.value);
   window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, "_blank");
+}
+
+function openLevelCompleteModal() {
+  const currentReward = state.currentReward || state.rewards.find((reward) => Number(reward.required_referrals) === Number(state.goal));
+  const nextReward = state.rewards.find((reward) => Number(reward.required_referrals) > Number(state.goal));
+  els.levelCompleteTitle.textContent = `${currentReward?.name || "Rango"} completado`;
+  els.levelCompleteText.textContent = nextReward
+    ? `Tu premio esta listo para reclamar. Tambien desbloqueaste ${nextReward.name}: ${nextReward.prize_name}.`
+    : "Tu premio esta listo para reclamar. Sigue compartiendo para mejores beneficios.";
+  els.levelCompleteModal.hidden = false;
+  els.levelCompleteModal.classList.add("show");
+  spawnSparks();
+}
+
+function closeLevelCompleteModal() {
+  els.levelCompleteModal.classList.remove("show");
+  window.setTimeout(() => {
+    els.levelCompleteModal.hidden = true;
+  }, 160);
 }
 
 function showToast(message) {
@@ -596,6 +659,7 @@ els.claimButton.addEventListener("click", claimWithGoogle);
 els.customizeLinkButton.addEventListener("click", customizeReferralLink);
 els.validateReferralButton.addEventListener("click", validateReferralVisit);
 els.copyButton.addEventListener("click", copyReferral);
+els.copyInlineButton.addEventListener("click", copyReferral);
 els.whatsappButton.addEventListener("click", shareWhatsApp);
 els.facebookButton.addEventListener("click", shareFacebook);
 els.closePrizeModal.addEventListener("click", closePrizeModal);
@@ -608,6 +672,18 @@ els.zoomInButton.addEventListener("click", () => changeViewerZoom(0.25));
 els.zoomResetButton.addEventListener("click", resetViewerZoom);
 els.imageViewer.addEventListener("click", (event) => {
   if (event.target === els.imageViewer) closeImageViewer();
+});
+els.closeLevelCompleteModal.addEventListener("click", closeLevelCompleteModal);
+els.completeClaimButton.addEventListener("click", () => {
+  closeLevelCompleteModal();
+  claimWithGoogle();
+});
+els.completeReferralsButton.addEventListener("click", () => {
+  closeLevelCompleteModal();
+  setView("referrals");
+});
+els.levelCompleteModal.addEventListener("click", (event) => {
+  if (event.target === els.levelCompleteModal) closeLevelCompleteModal();
 });
 els.prizeModal.addEventListener("click", (event) => {
   if (event.target === els.prizeModal) closePrizeModal();
