@@ -551,6 +551,12 @@ async function getTableCounts(tableNames) {
   return Object.fromEntries(entries);
 }
 
+async function initializeSchema() {
+  const schemaPath = path.join(rootDir, "schema.sql");
+  const schema = await fs.promises.readFile(schemaPath, "utf8");
+  await query(schema);
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     if (req.url.startsWith("/api/")) {
@@ -564,6 +570,13 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, '0.0.0.0', () => {
-  console.log(`SGI Referral listo en http://0.0.0.0:${port}`);
-});
+initializeSchema()
+  .then(() => {
+    server.listen(port, "0.0.0.0", () => {
+      console.log(`SGI Referral listo en http://0.0.0.0:${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error(`No se pudo inicializar la base de datos: ${error.message}`);
+    process.exit(1);
+  });
