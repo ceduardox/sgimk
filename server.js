@@ -413,6 +413,23 @@ async function handleApi(req, res) {
       return;
     }
 
+    const reciprocalReferral = await query(
+      `select 1
+       from referrals
+       where customer_id = $1
+         and status in ('valid', 'review', 'pending')
+         and (
+           referred_customer_id = $2
+           or referred_device_id = $3
+         )
+       limit 1`,
+      [referredCustomerId, customer.rows[0].id, customer.rows[0].device_id]
+    );
+    if (reciprocalReferral.rowCount) {
+      sendJson(res, 400, { error: "Referido cruzado no permitido entre los mismos usuarios" });
+      return;
+    }
+
     const existingReferral = await query(
       "select * from referrals where customer_id = $1 and referred_device_id = $2 order by created_at asc limit 1",
       [customer.rows[0].id, deviceId]
@@ -425,12 +442,13 @@ async function handleApi(req, res) {
     const risk = await evaluateReferral({ customerId: customer.rows[0].id, deviceId, req });
     const result = await query(
       `insert into referrals
-        (customer_id, referred_name, referred_device_id, referred_ip, referred_user_agent, status, risk_score, risk_reasons)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
+        (customer_id, referred_name, referred_customer_id, referred_device_id, referred_ip, referred_user_agent, status, risk_score, risk_reasons)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        returning *`,
       [
         customer.rows[0].id,
         name,
+        referredCustomerId,
         deviceId,
         getClientIp(req),
         req.headers["user-agent"] || "",

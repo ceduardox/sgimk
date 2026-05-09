@@ -28,6 +28,7 @@ create table if not exists referrals (
   customer_id bigint not null references customers(id) on delete cascade,
   referred_name text not null,
   referred_phone text,
+  referred_customer_id bigint references customers(id) on delete set null,
   referred_device_id text,
   referred_ip text,
   referred_user_agent text,
@@ -38,6 +39,7 @@ create table if not exists referrals (
 );
 
 alter table referrals add column if not exists referred_device_id text;
+alter table referrals add column if not exists referred_customer_id bigint references customers(id) on delete set null;
 alter table referrals add column if not exists referred_ip text;
 alter table referrals add column if not exists referred_user_agent text;
 alter table referrals add column if not exists risk_score integer not null default 0;
