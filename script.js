@@ -62,6 +62,7 @@ const els = {
 
 let toastTimer;
 let pollTimer;
+const autoValidatedRefs = new Set();
 
 function renderPrizeVisual(container, prize, size = "normal") {
   if (prize?.image) {
@@ -239,6 +240,7 @@ function setupReferralLanding() {
 
   els.referredPanel.hidden = false;
   els.inviterCode.textContent = ref;
+  autoValidateReferralVisit(ref);
 }
 
 function getPublicReferralCode() {
@@ -431,11 +433,20 @@ async function loadState(options = {}) {
   render();
 }
 
+async function autoValidateReferralVisit(ref) {
+  if (!ref || autoValidatedRefs.has(ref)) return;
+  autoValidatedRefs.add(ref);
+  await submitReferralVisit(ref, "Visitante referido", true);
+}
+
 async function validateReferralVisit() {
   const ref = new URLSearchParams(window.location.search).get("ref");
   if (!ref) return;
   const name = window.prompt("Tu nombre para validar la visita") || "Visitante referido";
+  await submitReferralVisit(ref, name, false);
+}
 
+async function submitReferralVisit(ref, name, automatic) {
   try {
     const response = await fetch("/api/referrals/convert", {
       method: "POST",
@@ -444,10 +455,12 @@ async function validateReferralVisit() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "No se pudo validar");
-    showToast(result.status === "valid" ? "Visita validada." : `Quedo en estado: ${result.status}`);
+    showToast(result.status === "valid"
+      ? (automatic ? "Tu visita ya cuenta como referido." : "Visita validada.")
+      : `Quedo en estado: ${result.status}`);
     els.referredPanel.hidden = true;
   } catch (error) {
-    showToast(error.message);
+    if (!automatic) showToast(error.message);
   }
 }
 

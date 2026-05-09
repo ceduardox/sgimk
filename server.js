@@ -413,6 +413,15 @@ async function handleApi(req, res) {
       return;
     }
 
+    const existingReferral = await query(
+      "select * from referrals where customer_id = $1 and referred_device_id = $2 order by created_at asc limit 1",
+      [customer.rows[0].id, deviceId]
+    );
+    if (existingReferral.rowCount) {
+      sendJson(res, 200, existingReferral.rows[0]);
+      return;
+    }
+
     const risk = await evaluateReferral({ customerId: customer.rows[0].id, deviceId, req });
     const result = await query(
       `insert into referrals
