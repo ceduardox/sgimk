@@ -10,6 +10,7 @@ const rootDir = __dirname;
 const port = Number(process.env.PORT || 8080);
 const adminUser = process.env.ADMIN_USER || "admin";
 const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+const captchaSecret = process.env.CAPTCHA_SECRET || `${adminPassword}:${process.env.DATABASE_URL || "local"}`;
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -198,6 +199,74 @@ function validateRegistrationPayload(body) {
   return { name, email, whatsappCountryCode, whatsappNumber, customReferralCode, password };
 }
 
+const captchaItems = [
+  { id: "tooth", label: "diente", icon: "fa-solid fa-tooth" },
+  { id: "gift", label: "regalo", icon: "fa-solid fa-gift" },
+  { id: "star", label: "estrella", icon: "fa-solid fa-star" },
+  { id: "bolt", label: "rayo", icon: "fa-solid fa-bolt" },
+  { id: "basket", label: "canasta", icon: "fa-solid fa-basket-shopping" },
+  { id: "soap", label: "jabon", icon: "fa-solid fa-soap" }
+];
+
+function encodeBase64Url(value) {
+  return Buffer.from(value).toString("base64url");
+}
+
+function decodeBase64Url(value) {
+  return Buffer.from(String(value || ""), "base64url").toString("utf8");
+}
+
+function signCaptchaPayload(payload) {
+  const encoded = encodeBase64Url(JSON.stringify(payload));
+  const signature = crypto.createHmac("sha256", captchaSecret).update(encoded).digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
+function verifyCaptchaToken(token) {
+  const [encoded, signature] = String(token || "").split(".");
+  if (!encoded || !signature) return null;
+  const expected = crypto.createHmac("sha256", captchaSecret).update(encoded).digest("base64url");
+  const expectedBuffer = Buffer.from(expected);
+  const signatureBuffer = Buffer.from(signature);
+  if (expectedBuffer.length !== signatureBuffer.length || !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(decodeBase64Url(encoded));
+    if (!payload.answer || !payload.expires_at || Date.now() > Number(payload.expires_at)) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function createCaptchaChallenge() {
+  const shuffled = [...captchaItems].sort(() => Math.random() - 0.5).slice(0, 4);
+  const target = shuffled[Math.floor(Math.random() * shuffled.length)];
+  const token = signCaptchaPayload({
+    answer: target.id,
+    nonce: crypto.randomUUID(),
+    expires_at: Date.now() + 5 * 60 * 1000
+  });
+
+  return {
+    token,
+    prompt: `Toca el icono de ${target.label}`,
+    choices: shuffled.map((item) => ({
+      id: item.id,
+      label: item.label,
+      icon: item.icon
+    }))
+  };
+}
+
+function validateCaptcha(body) {
+  const payload = verifyCaptchaToken(body.captcha_token);
+  const answer = String(body.captcha_answer || "").trim();
+  return Boolean(payload && answer && payload.answer === answer);
+}
+
 function hashPassword(password) {
   const iterations = 120000;
   const salt = crypto.randomBytes(16).toString("hex");
@@ -219,6 +288,10 @@ function verifyPassword(password, storedHash) {
 }
 
 async function saveRegisteredProfile(customerId, body) {
+  if (!validateCaptcha(body)) {
+    return { status: 400, payload: { error: "Captcha incorrecto. Toca el icono indicado" } };
+  }
+
   const payload = validateRegistrationPayload(body);
   if (payload.error) {
     return { status: 400, payload: { error: payload.error } };
@@ -368,6 +441,11 @@ async function handleApi(req, res) {
     const { customerId } = await ensureRequestCustomer(req, res);
     const state = await getClubState(customerId);
     sendJson(res, 200, state);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/captcha/profile") {
+    sendJson(res, 200, createCaptchaChallenge());
     return;
   }
 
@@ -590,25 +668,46 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/rewards/claim") {
-    const body = await readBody(req);
     const { customerId } = await ensureRequestCustomer(req, res);
-    const googleEmail = String(body.google_email || "").trim();
     const customer = await query(
-      "select selected_prize_name, selected_prize_image from customers where id = $1",
+      `select selected_prize_name, selected_prize_image, email, whatsapp_country_code, whatsapp_number, registered_at
+       from customers
+       where id = $1`,
       [customerId]
     );
     const selectedPrizeName = String(customer.rows[0]?.selected_prize_name || "").trim();
     const selectedPrizeImage = String(customer.rows[0]?.selected_prize_image || "").trim();
+    const contactEmail = String(customer.rows[0]?.email || "").trim();
+    const contactCountry = String(customer.rows[0]?.whatsapp_country_code || "").trim();
+    const contactWhatsapp = String(customer.rows[0]?.whatsapp_number || "").trim();
+    if (!customer.rows[0]?.registered_at || !contactEmail || !contactCountry || !contactWhatsapp) {
+      sendJson(res, 400, { error: "Completa tu registro tradicional antes de reclamar" });
+      return;
+    }
+    if (!selectedPrizeName) {
+      sendJson(res, 400, { error: "Primero revela tu premio potencial" });
+      return;
+    }
+
     const validCount = await query(
       "select count(*)::int as count from referrals where customer_id = $1 and status = 'valid'",
       [customerId]
     );
+    const firstReward = await query(
+      "select required_referrals from rewards where is_locked = false order by required_referrals asc limit 1"
+    );
+    const requiredReferrals = Number(firstReward.rows[0]?.required_referrals || 3);
+    if (Number(validCount.rows[0].count) < requiredReferrals) {
+      sendJson(res, 400, { error: `Completa ${requiredReferrals} referidos validos antes de reclamar` });
+      return;
+    }
+
     const result = await query(
       `insert into reward_claims
-        (customer_id, google_email, google_subject, selected_prize_name, selected_prize_image, status, valid_referrals_count)
-       values ($1, $2, $3, $4, $5, 'pending_google', $6)
+        (customer_id, email, whatsapp_country_code, whatsapp_number, selected_prize_name, selected_prize_image, status, valid_referrals_count)
+       values ($1, $2, $3, $4, $5, $6, 'pending', $7)
        returning *`,
-      [customerId, googleEmail, String(body.google_subject || ""), selectedPrizeName, selectedPrizeImage, validCount.rows[0].count]
+      [customerId, contactEmail, contactCountry, contactWhatsapp, selectedPrizeName, selectedPrizeImage, validCount.rows[0].count]
     );
     sendJson(res, 201, result.rows[0]);
     return;

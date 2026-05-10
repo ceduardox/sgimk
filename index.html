@@ -59,7 +59,7 @@
 
         <div class="main-actions">
           <button class="primary-action" data-nav="refer" type="button"><i class="fa-solid fa-share-nodes"></i> Compartir mi link</button>
-          <button class="claim-action" id="claimButton" type="button" disabled><i class="fa-brands fa-google"></i> Reclamar con Google</button>
+          <button class="claim-action" id="claimButton" type="button" disabled><i class="fa-solid fa-ticket"></i> Reclamar premio</button>
         </div>
       </section>
 
@@ -173,6 +173,13 @@
               </button>
             </div>
           </label>
+          <div class="game-captcha" id="profileCaptcha">
+            <strong id="captchaPrompt">Toca el icono indicado</strong>
+            <div class="captcha-options" id="captchaOptions"></div>
+            <button class="captcha-refresh" id="captchaRefreshButton" type="button">
+              <i class="fa-solid fa-rotate-right"></i> Cambiar reto
+            </button>
+          </div>
           <small class="profile-note">Tu link generico sigue funcionando. El alias nuevo se suma a la misma cuenta y conserva tus referidos.</small>
           <button class="profile-link-button" id="customizeLinkButton" type="submit">
             <i class="fa-solid fa-wand-magic-sparkles"></i> Guardar mi link personalizado

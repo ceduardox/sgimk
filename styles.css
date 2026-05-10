@@ -668,6 +668,71 @@ button {
   line-height: 1.2;
 }
 
+.game-captcha {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid rgba(255, 212, 59, 0.34);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 50% 0, rgba(255, 212, 59, 0.18), transparent 58%),
+    rgba(255, 255, 255, 0.06);
+}
+
+.game-captcha strong {
+  color: white;
+  font-size: 0.98rem;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.captcha-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.captcha-options button {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 64px;
+  border: 1px solid rgba(25, 221, 255, 0.35);
+  border-radius: 14px;
+  color: white;
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 900;
+}
+
+.captcha-options button.selected {
+  border-color: var(--gold);
+  color: #2c1700;
+  background: linear-gradient(180deg, #fff36f, var(--orange));
+  box-shadow: 0 0 18px rgba(255, 212, 59, 0.28);
+}
+
+.captcha-options i {
+  font-size: 1.32rem;
+}
+
+.captcha-options span {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.62rem;
+  line-height: 1;
+  text-overflow: ellipsis;
+}
+
+.captcha-refresh {
+  min-height: 38px;
+  border: 0;
+  border-radius: 12px;
+  color: white;
+  background: rgba(25, 221, 255, 0.18);
+  font-weight: 900;
+}
+
 .login-form {
   margin-top: 18px;
 }

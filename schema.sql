@@ -74,13 +74,19 @@ create table if not exists reward_claims (
   customer_id bigint not null references customers(id) on delete cascade,
   google_email text,
   google_subject text,
+  email text,
+  whatsapp_country_code text,
+  whatsapp_number text,
   selected_prize_name text,
   selected_prize_image text,
-  status text not null default 'pending_google',
+  status text not null default 'pending',
   valid_referrals_count integer not null default 0,
   created_at timestamptz not null default now()
 );
 
+alter table reward_claims add column if not exists email text;
+alter table reward_claims add column if not exists whatsapp_country_code text;
+alter table reward_claims add column if not exists whatsapp_number text;
 alter table reward_claims add column if not exists selected_prize_name text;
 alter table reward_claims add column if not exists selected_prize_image text;
 
@@ -130,3 +136,4 @@ on conflict (id) do update set
   is_completed = excluded.is_completed;
 
 update referrals set status = 'valid' where status = 'validado';
+update reward_claims set status = 'pending' where status = 'pending_google';

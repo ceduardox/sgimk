@@ -53,6 +53,9 @@ const els = {
   profileAlias: document.querySelector("#profileAlias"),
   profilePassword: document.querySelector("#profilePassword"),
   profilePasswordConfirm: document.querySelector("#profilePasswordConfirm"),
+  captchaPrompt: document.querySelector("#captchaPrompt"),
+  captchaOptions: document.querySelector("#captchaOptions"),
+  captchaRefreshButton: document.querySelector("#captchaRefreshButton"),
   customizeLinkButton: document.querySelector("#customizeLinkButton"),
   loginForm: document.querySelector("#loginForm"),
   loginEmail: document.querySelector("#loginEmail"),
@@ -87,6 +90,11 @@ const els = {
   completeReferralsButton: document.querySelector("#completeReferralsButton"),
   fxLayer: document.querySelector("#fxLayer"),
   toast: document.querySelector("#toast")
+};
+
+const captchaState = {
+  token: "",
+  answer: ""
 };
 
 let toastTimer;
@@ -173,7 +181,7 @@ function render() {
   els.progressHint.textContent = progressMessage();
   els.claimButton.disabled = !complete;
   els.claimButton.innerHTML = complete
-    ? `<i class="fa-brands fa-google"></i> Reclamar con Google`
+    ? `<i class="fa-solid fa-ticket"></i> Reclamar premio`
     : `<i class="fa-solid fa-lock"></i> Reclamo bloqueado`;
 
   els.revealButton.classList.toggle("waiting-progress", lockedPrize);
@@ -568,7 +576,7 @@ async function submitReferralVisit(ref, name) {
   }
 }
 
-async function claimWithGoogle() {
+async function claimReward() {
   if (!state.isRevealed) {
     showToast("Primero revela tu premio potencial.");
     return;
@@ -579,22 +587,50 @@ async function claimWithGoogle() {
     return;
   }
 
-  const googleEmail = window.prompt("Demo Google: escribe tu correo Gmail para reclamar");
-  if (!googleEmail) return;
+  if (!state.customer.registered_at) {
+    showToast("Completa tu registro para reclamar el premio.");
+    setView("profile");
+    return;
+  }
 
   try {
-    await fetch("/api/rewards/claim", {
+    const response = await fetch("/api/rewards/claim", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        google_email: googleEmail,
-        google_subject: `demo:${googleEmail}`
-      })
+      headers: { "content-type": "application/json" }
     });
-    showToast("Solicitud de reclamo creada. Admin debe aprobar entrega.");
-  } catch {
-    showToast("No se pudo crear el reclamo.");
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "No se pudo crear el reclamo");
+    showToast("Solicitud de reclamo creada. Admin revisara la entrega.");
+  } catch (error) {
+    showToast(error.message);
   }
+}
+
+async function loadCaptcha() {
+  try {
+    captchaState.answer = "";
+    const response = await fetch("/api/captcha/profile");
+    if (!response.ok) throw new Error("captcha");
+    const challenge = await response.json();
+    captchaState.token = challenge.token;
+    els.captchaPrompt.textContent = challenge.prompt;
+    els.captchaOptions.innerHTML = challenge.choices.map((choice) => `
+      <button type="button" data-captcha-answer="${choice.id}" aria-label="${choice.label}">
+        <i class="${choice.icon}"></i>
+        <span>${choice.label}</span>
+      </button>
+    `).join("");
+  } catch {
+    els.captchaPrompt.textContent = "No se pudo cargar el reto. Intenta de nuevo.";
+    els.captchaOptions.innerHTML = "";
+  }
+}
+
+function selectCaptchaAnswer(button) {
+  captchaState.answer = button.dataset.captchaAnswer || "";
+  els.captchaOptions.querySelectorAll("button").forEach((option) => {
+    option.classList.toggle("selected", option === button);
+  });
 }
 
 async function customizeReferralLink(event) {
@@ -603,6 +639,10 @@ async function customizeReferralLink(event) {
   const passwordConfirm = els.profilePasswordConfirm.value;
   if (password !== passwordConfirm) {
     showToast("Las contrasenas no coinciden.");
+    return;
+  }
+  if (!captchaState.token || !captchaState.answer) {
+    showToast("Completa el reto de iconos.");
     return;
   }
 
@@ -617,7 +657,9 @@ async function customizeReferralLink(event) {
         whatsapp_number: els.profileWhatsapp.value,
         email: els.profileEmail.value,
         custom_referral_code: els.profileAlias.value,
-        password
+        password,
+        captcha_token: captchaState.token,
+        captcha_answer: captchaState.answer
       })
     });
     const result = await response.json();
@@ -627,10 +669,12 @@ async function customizeReferralLink(event) {
     els.profilePasswordConfirm.value = "";
     profileFormTouched = false;
     profileFormHydrated = false;
+    await loadCaptcha();
     render();
     showToast("Perfil guardado. Tu link personalizado ya funciona.");
   } catch (error) {
     showToast(error.message);
+    await loadCaptcha();
   } finally {
     els.customizeLinkButton.disabled = false;
   }
@@ -721,12 +765,17 @@ function showToast(message) {
 }
 
 els.revealButton.addEventListener("click", revealPrize);
-els.claimButton.addEventListener("click", claimWithGoogle);
+els.claimButton.addEventListener("click", claimReward);
 els.profileForm.addEventListener("submit", customizeReferralLink);
 els.profileForm.addEventListener("input", () => {
   profileFormTouched = true;
 });
 els.loginForm.addEventListener("submit", loginProfile);
+els.captchaRefreshButton.addEventListener("click", loadCaptcha);
+els.captchaOptions.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-captcha-answer]");
+  if (button) selectCaptchaAnswer(button);
+});
 document.querySelectorAll("[data-password-toggle]").forEach((button) => {
   button.addEventListener("click", () => togglePasswordVisibility(button));
 });
@@ -748,7 +797,7 @@ els.imageViewer.addEventListener("click", (event) => {
 els.closeLevelCompleteModal.addEventListener("click", closeLevelCompleteModal);
 els.completeClaimButton.addEventListener("click", () => {
   closeLevelCompleteModal();
-  claimWithGoogle();
+  claimReward();
 });
 els.completeReferralsButton.addEventListener("click", () => {
   closeLevelCompleteModal();
@@ -769,4 +818,5 @@ loadPrizePool().then(() => {
 });
 initDevice();
 loadState();
+loadCaptcha();
 pollTimer = window.setInterval(() => loadState({ animate: true }), 5000);
