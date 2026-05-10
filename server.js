@@ -410,6 +410,24 @@ function serveStatic(req, res) {
 
   fs.readFile(filePath, (error, data) => {
     if (error) {
+      const ext = path.extname(filePath).toLowerCase();
+      if ([".jpg", ".jpeg", ".png"].includes(ext)) {
+        const webpPath = `${filePath.slice(0, -ext.length)}.webp`;
+        if (webpPath.startsWith(rootDir)) {
+          fs.readFile(webpPath, (webpError, webpData) => {
+            if (webpError) {
+              res.writeHead(404);
+              res.end("Not found");
+              return;
+            }
+
+            res.writeHead(200, { "content-type": mimeTypes[".webp"] });
+            res.end(webpData);
+          });
+          return;
+        }
+      }
+
       res.writeHead(404);
       res.end("Not found");
       return;

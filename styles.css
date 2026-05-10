@@ -227,6 +227,12 @@ button {
   background: white;
 }
 
+.prize-image.image-load-error,
+#modalPrizeImage.image-load-error,
+#viewerPrizeImage.image-load-error {
+  opacity: 0;
+}
+
 .prize-image.normal {
   border-radius: 50%;
 }

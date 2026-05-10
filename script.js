@@ -121,6 +121,11 @@ function normalizePrizeImage(src) {
   return src.startsWith("/") ? src : `/${src}`;
 }
 
+function webpFallbackForImage(src) {
+  const cleanSrc = String(src || "").split("?")[0];
+  return cleanSrc.replace(/\.(jpe?g|png)$/i, ".webp");
+}
+
 function prizeWords(name) {
   return String(name || "")
     .toLowerCase()
@@ -477,6 +482,21 @@ function resetViewerZoom() {
   updateViewerZoom();
 }
 
+function handlePrizeImageError(event) {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement)) return;
+  if (!image.matches(".prize-image, #modalPrizeImage, #viewerPrizeImage")) return;
+
+  const fallback = webpFallbackForImage(image.getAttribute("src"));
+  if (fallback && fallback !== image.getAttribute("src") && image.dataset.triedWebp !== "true") {
+    image.dataset.triedWebp = "true";
+    image.src = fallback;
+    return;
+  }
+
+  image.classList.add("image-load-error");
+}
+
 function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -812,6 +832,7 @@ els.prizeModal.addEventListener("click", (event) => {
 document.querySelectorAll("[data-nav]").forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.nav));
 });
+document.addEventListener("error", handlePrizeImageError, true);
 
 loadPrizePool().then(() => {
   render();
