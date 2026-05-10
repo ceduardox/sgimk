@@ -342,8 +342,7 @@ button {
 
 .primary-action,
 .claim-action,
-.share-grid button,
-.referred-panel button {
+.share-grid button {
   min-height: 46px;
   border: 0;
   border-radius: 14px;
@@ -700,11 +699,6 @@ button {
 .referred-panel p {
   color: var(--muted);
   line-height: 1.25;
-}
-
-.referred-panel button {
-  width: 100%;
-  background: linear-gradient(180deg, var(--green), #0c9b38);
 }
 
 .bottom-nav {

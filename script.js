@@ -60,7 +60,6 @@ const els = {
   loginButton: document.querySelector("#loginButton"),
   referredPanel: document.querySelector("#referredPanel"),
   inviterCode: document.querySelector("#inviterCode"),
-  validateReferralButton: document.querySelector("#validateReferralButton"),
   whatsappButton: document.querySelector("#whatsappButton"),
   facebookButton: document.querySelector("#facebookButton"),
   copyButton: document.querySelector("#copyButton"),
@@ -545,20 +544,13 @@ async function loadState(options = {}) {
   render();
 }
 
-async function validateReferralVisit() {
-  const ref = new URLSearchParams(window.location.search).get("ref");
-  if (!ref) return;
-  const name = window.prompt("Tu nombre para validar la visita") || "Visitante referido";
-  await submitReferralVisit(ref, name, false);
-}
-
 async function convertPendingReferral() {
   if (!pendingReferralCode || pendingReferralConverted) return;
   pendingReferralConverted = true;
-  await submitReferralVisit(pendingReferralCode, "Visitante referido", true);
+  await submitReferralVisit(pendingReferralCode, "Visitante referido");
 }
 
-async function submitReferralVisit(ref, name, automatic) {
+async function submitReferralVisit(ref, name) {
   try {
     const response = await fetch("/api/referrals/convert", {
       method: "POST",
@@ -568,11 +560,11 @@ async function submitReferralVisit(ref, name, automatic) {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "No se pudo validar");
     showToast(result.status === "valid"
-      ? (automatic ? "Tu premio ya cuenta como referido." : "Visita validada.")
+      ? "Tu premio ya cuenta como referido."
       : `Quedo en estado: ${result.status}`);
     els.referredPanel.hidden = true;
-  } catch (error) {
-    if (!automatic) showToast(error.message);
+  } catch {
+    pendingReferralConverted = false;
   }
 }
 
@@ -738,7 +730,6 @@ els.loginForm.addEventListener("submit", loginProfile);
 document.querySelectorAll("[data-password-toggle]").forEach((button) => {
   button.addEventListener("click", () => togglePasswordVisibility(button));
 });
-els.validateReferralButton.addEventListener("click", validateReferralVisit);
 els.copyButton.addEventListener("click", copyReferral);
 els.copyInlineButton.addEventListener("click", copyReferral);
 els.whatsappButton.addEventListener("click", shareWhatsApp);
