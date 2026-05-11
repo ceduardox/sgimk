@@ -22,6 +22,7 @@ const state = {
 
 const els = {
   productIcon: document.querySelector("#productIcon"),
+  levelName: document.querySelector("#levelName"),
   productName: document.querySelector("#productName"),
   productWindow: document.querySelector(".product-window"),
   revealButton: document.querySelector("#revealButton"),
@@ -232,6 +233,8 @@ function render() {
 
   els.profileName.textContent = state.customer.name || "Jugador SGI";
   const publicCode = getPublicReferralCode();
+  const currentRoadReward = getActiveRoadReward();
+  els.levelName.textContent = `Nivel ${rewardDisplayName(currentRoadReward.reward, currentRoadReward.index)}`;
   els.referralLink.value = `${window.location.origin}/r/${publicCode}`;
   els.profileCode.textContent = `Link: /r/${publicCode}`;
   els.profileCount.textContent = `Referidos validos: ${count}`;
@@ -310,8 +313,7 @@ function formatReferralDate(value) {
 function renderLevels() {
   const count = validReferrals();
   const rewards = getRewardsForRoad();
-  const activeReward = rewards.find((reward) => count < Number(reward.required_referrals)) || rewards[rewards.length - 1];
-  const activeIndex = rewards.indexOf(activeReward);
+  const { reward: activeReward, index: activeIndex } = getActiveRoadReward();
   const previousGoal = activeIndex <= 0 ? 0 : Number(rewards[activeIndex - 1].required_referrals);
   const activeGoal = Math.max(1, Number(activeReward.required_referrals) - previousGoal);
   const activeProgress = Math.max(0, Math.min(activeGoal, count - previousGoal));
@@ -320,8 +322,8 @@ function renderLevels() {
   els.levelSummary.innerHTML = `
     <div>
       <span>Rango actual</span>
-      <strong>${escapeHtml(activeReward.name)}</strong>
-      <small>${activeProgress}/${activeGoal} pasos de este tramo - ${count}/${activeReward.required_referrals} referidos totales</small>
+      <strong>${escapeHtml(rewardDisplayName(activeReward, activeIndex))}</strong>
+      <small>${activeProgress}/${activeGoal} referidos para subir - ${count}/${activeReward.required_referrals} referidos totales</small>
     </div>
     <b>${activePercent}%</b>
   `;
@@ -344,9 +346,9 @@ function renderLevels() {
           <div class="level-icon planet-core"><i class="${reward.icon_class}"></i></div>
         </div>
         <div class="level-node-copy">
-          <strong>${escapeHtml(reward.name)}</strong>
+          <strong>${escapeHtml(rewardDisplayName(reward, index))}</strong>
           <span>${escapeHtml(reward.prize_name)}</span>
-          <small>${segmentProgress}/${segmentGoal} de este tramo - meta ${required}</small>
+          <small>${segmentProgress}/${segmentGoal} para subir - meta total ${required}</small>
           <div class="level-stars" aria-label="${segmentProgress} de ${segmentGoal} referidos">${renderLevelStars(segmentProgress, segmentGoal)}</div>
         </div>
         <b class="status-pill">${status}</b>
@@ -367,8 +369,21 @@ function renderLevelStars(progress, goal) {
 
 function getRewardsForRoad() {
   return state.rewards.length ? state.rewards : [
-    { id: "fallback-bronce", name: "Rango Bronce", prize_name: "Premio inicial", required_referrals: state.goal, icon_class: "fa-solid fa-medal", is_locked: false }
+    { id: "fallback-bronce", name: "Bronce", prize_name: "Premio inicial", required_referrals: state.goal, icon_class: "fa-solid fa-medal", is_locked: false }
   ];
+}
+
+function getActiveRoadReward() {
+  const rewards = getRewardsForRoad();
+  const reward = rewards.find((item) => validReferrals() < Number(item.required_referrals)) || rewards[rewards.length - 1];
+  return { reward, index: Math.max(0, rewards.indexOf(reward)) };
+}
+
+function rewardDisplayName(reward, index = 0) {
+  const names = ["Bronce", "Cobre", "Plata", "Oro", "Diamante", "Elite"];
+  const rawName = String(reward?.name || "").trim();
+  if (!rawName || /^rango\s+\d+$/i.test(rawName)) return names[index] || `Nivel ${index + 1}`;
+  return rawName;
 }
 
 function getLevelInfo(reward) {
@@ -388,8 +403,10 @@ function getLevelInfo(reward) {
 }
 
 function levelRules(reward, info) {
+  const name = rewardDisplayName(reward, info.index);
   const rules = [
-    `Necesitas ${info.required} referidos validos en total para completar ${reward.name}.`,
+    `Necesitas ${info.segmentGoal} referidos validos en este tramo para subir de ${name}.`,
+    `Meta total acumulada de este rango: ${info.required} referidos validos.`,
     "Un referido cuenta cuando entra por tu link y revela su premio en su dispositivo.",
     "Los duplicados o cruces sospechosos pueden quedar en revision y no suman hasta validarse."
   ];
@@ -415,9 +432,9 @@ function openLevelDetail(rewardId) {
 
   els.levelDetailIcon.innerHTML = `<i class="${reward.icon_class}"></i>`;
   els.levelDetailStatus.textContent = status;
-  els.levelDetailTitle.textContent = reward.name;
+  els.levelDetailTitle.textContent = rewardDisplayName(reward, info.index);
   els.levelDetailPrize.textContent = `Premio: ${reward.prize_name}`;
-  els.levelDetailProgressText.textContent = `${info.segmentProgress}/${info.segmentGoal} de este tramo - ${validReferrals()}/${info.required} referidos totales`;
+  els.levelDetailProgressText.textContent = `${info.segmentProgress}/${info.segmentGoal} referidos para subir - ${validReferrals()}/${info.required} totales`;
   els.levelDetailProgressBar.style.width = `${info.percent}%`;
   els.levelDetailRules.innerHTML = levelRules(reward, info).map((rule) => `
     <div class="level-rule-row">
@@ -1081,9 +1098,11 @@ function shareFacebook() {
 function openLevelCompleteModal() {
   const currentReward = state.currentReward || state.rewards.find((reward) => Number(reward.required_referrals) === Number(state.goal));
   const nextReward = state.rewards.find((reward) => Number(reward.required_referrals) > Number(state.goal));
-  els.levelCompleteTitle.textContent = `${currentReward?.name || "Rango"} completado`;
+  const currentIndex = Math.max(0, state.rewards.findIndex((reward) => String(reward.id) === String(currentReward?.id)));
+  const nextIndex = Math.max(0, state.rewards.findIndex((reward) => String(reward.id) === String(nextReward?.id)));
+  els.levelCompleteTitle.textContent = `${rewardDisplayName(currentReward, currentIndex)} completado`;
   els.levelCompleteText.textContent = nextReward
-    ? `Tu premio esta listo para reclamar. Tambien desbloqueaste ${nextReward.name}: ${nextReward.prize_name}.`
+    ? `Tu premio esta listo para reclamar. Tambien desbloqueaste ${rewardDisplayName(nextReward, nextIndex)}: ${nextReward.prize_name}.`
     : "Tu premio esta listo para reclamar. Sigue compartiendo para mejores beneficios.";
   els.levelCompleteModal.hidden = false;
   els.levelCompleteModal.classList.add("show");
