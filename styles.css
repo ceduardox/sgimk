@@ -65,6 +65,7 @@ button {
 }
 
 .game-header {
+  position: relative;
   display: grid;
   justify-items: center;
   align-items: center;
@@ -92,6 +93,29 @@ button {
   background: rgba(255, 122, 0, 0.18);
   font-size: 0.78rem;
   font-weight: 900;
+}
+
+.header-profile-button {
+  position: absolute;
+  top: 8px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(255, 212, 59, 0.42);
+  border-radius: 50%;
+  color: white;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.28), transparent 22%),
+    linear-gradient(180deg, #fff36f, var(--orange));
+  box-shadow: 0 5px 0 #9c4300, 0 0 18px rgba(255, 212, 59, 0.32);
+  font-size: 1.1rem;
+}
+
+.header-profile-button.active {
+  color: #2c1700;
+  box-shadow: 0 4px 0 #9c4300, 0 0 26px rgba(255, 212, 59, 0.58);
 }
 
 .app-view {
@@ -1280,7 +1304,7 @@ button {
   bottom: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   align-items: center;
   width: min(100%, 430px);
   min-height: 74px;
@@ -1300,7 +1324,7 @@ button {
   border: 0;
   color: rgba(255, 255, 255, 0.68);
   background: transparent;
-  font-size: 1.08rem;
+  font-size: 1.2rem;
   font-weight: 900;
 }
 
@@ -1309,8 +1333,8 @@ button {
 }
 
 .bottom-nav span {
-  max-width: 62px;
-  font-size: 0.52rem;
+  max-width: 76px;
+  font-size: 0.58rem;
   line-height: 1.05;
 }
 
@@ -1320,8 +1344,8 @@ button {
   align-content: center !important;
   justify-items: center !important;
   gap: 2px !important;
-  width: 62px;
-  height: 62px;
+  width: 68px;
+  height: 68px;
   margin: 0 auto;
   border-radius: 50% !important;
   color: white !important;
