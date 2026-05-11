@@ -337,14 +337,17 @@ function renderLevels() {
     const unlocked = !reward.is_locked && (index === 0 || count >= previousGoal);
     const status = complete ? "Completado" : active ? "Activo" : unlocked ? "Siguiente" : "Bloqueado";
     return `
-    <article class="level-card level-node ${active ? "active" : ""} ${complete ? "complete" : ""} ${!unlocked ? "locked" : ""}" style="--level-progress:${percent}%">
+    <article class="level-card level-node planet-node planet-${(index % 6) + 1} ${active ? "active" : ""} ${complete ? "complete" : ""} ${!unlocked ? "locked" : ""}" style="--level-progress:${percent}%">
       <button class="level-node-button" type="button" data-level-detail="${escapeHtml(reward.id)}" aria-label="Ver reglas de ${escapeHtml(reward.name)}">
-        <div class="level-step">${index + 1}</div>
-        <div class="level-icon"><i class="${reward.icon_class}"></i></div>
+        <div class="planet-badge">${index + 1}</div>
+        <div class="planet-orbit">
+          <div class="level-icon planet-core"><i class="${reward.icon_class}"></i></div>
+        </div>
         <div class="level-node-copy">
           <strong>${escapeHtml(reward.name)}</strong>
           <span>${escapeHtml(reward.prize_name)}</span>
           <small>${segmentProgress}/${segmentGoal} de este tramo - meta ${required}</small>
+          <div class="level-stars" aria-label="${segmentProgress} de ${segmentGoal} referidos">${renderLevelStars(segmentProgress, segmentGoal)}</div>
         </div>
         <b class="status-pill">${status}</b>
         <div class="level-progress-line"><span></span></div>
@@ -352,6 +355,14 @@ function renderLevels() {
     </article>
   `;
   }).join("");
+}
+
+function renderLevelStars(progress, goal) {
+  const visibleStars = Math.max(1, Math.min(10, goal));
+  const filledStars = Math.round((Math.min(progress, goal) / goal) * visibleStars);
+  return Array.from({ length: visibleStars }, (_, index) => `
+    <i class="fa-solid fa-star ${index < filledStars ? "filled" : ""}"></i>
+  `).join("");
 }
 
 function getRewardsForRoad() {

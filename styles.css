@@ -545,11 +545,31 @@ button {
 }
 
 .level-page {
+  position: relative;
   min-height: calc(100vh - 116px);
   background:
+    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.9) 0 1px, transparent 2px),
+    radial-gradient(circle at 86% 12%, rgba(255, 212, 59, 0.95) 0 2px, transparent 3px),
+    radial-gradient(circle at 72% 34%, rgba(25, 221, 255, 0.9) 0 1px, transparent 2px),
+    radial-gradient(circle at 24% 64%, rgba(255, 255, 255, 0.75) 0 1px, transparent 2px),
     radial-gradient(circle at 80% 8%, rgba(255, 212, 59, 0.18), transparent 34%),
     radial-gradient(circle at 14% 20%, rgba(25, 221, 255, 0.2), transparent 36%),
-    linear-gradient(180deg, rgba(13, 28, 77, 0.96), rgba(7, 16, 48, 0.96));
+    linear-gradient(165deg, rgba(18, 20, 96, 0.98), rgba(7, 16, 48, 0.96) 52%, rgba(8, 35, 110, 0.98));
+  overflow: hidden;
+}
+
+.level-page::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  right: -20px;
+  bottom: -2px;
+  height: 62px;
+  border-radius: 50% 50% 0 0;
+  background:
+    radial-gradient(circle at 50% 0, rgba(25, 221, 255, 0.18), transparent 42%),
+    linear-gradient(180deg, rgba(9, 18, 61, 0.82), rgba(3, 9, 32, 0.98));
+  pointer-events: none;
 }
 
 .level-page-title h2 {
@@ -611,73 +631,134 @@ button {
 
 .level-map {
   position: relative;
-  gap: 12px;
-  padding: 2px 0 4px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 14px;
+  padding: 10px 0 28px;
+}
+
+.level-map::before {
+  content: "";
+  position: absolute;
+  inset: 18px 44px 54px 44px;
+  border: 3px dotted rgba(255, 255, 255, 0.42);
+  border-left-color: transparent;
+  border-right-color: transparent;
+  border-radius: 46% 54% 42% 58%;
+  transform: rotate(-8deg);
+  pointer-events: none;
 }
 
 .level-node {
+  position: relative;
+  z-index: 1;
   display: block;
   min-height: 0;
   padding: 0;
-  border: 1px solid rgba(25, 221, 255, 0.28);
-  overflow: hidden;
-}
-
-.level-node::before {
-  content: "";
-  position: absolute;
-  left: 32px;
-  top: -12px;
-  width: 4px;
-  height: 18px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(25, 221, 255, 0.18), rgba(255, 212, 59, 0.55));
-}
-
-.level-node:first-child::before {
-  display: none;
+  border: 0;
+  overflow: visible;
+  background: transparent;
 }
 
 .level-node-button {
   position: relative;
   display: grid;
-  grid-template-columns: 34px 52px 1fr auto;
-  gap: 9px;
-  align-items: center;
+  justify-items: center;
+  gap: 8px;
   width: 100%;
-  min-height: 84px;
-  padding: 12px;
+  min-height: 180px;
+  padding: 8px 6px 12px;
   border: 0;
   color: white;
-  text-align: left;
-  background:
-    linear-gradient(90deg, rgba(25, 221, 255, 0.08), transparent 48%),
-    rgba(255, 255, 255, 0.03);
+  text-align: center;
+  background: transparent;
 }
 
-.level-step {
+.planet-badge {
+  position: absolute;
+  top: 4px;
+  z-index: 3;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.72);
   border-radius: 50%;
-  color: #2c1700;
+  color: white;
   background: linear-gradient(180deg, #fff36f, var(--orange));
+  font-size: 0.72rem;
   font-weight: 900;
-  box-shadow: 0 4px 0 #9c4300;
+  box-shadow: 0 0 14px rgba(255, 212, 59, 0.5);
+}
+
+.planet-orbit {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  margin-top: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.12), transparent 54%),
+    conic-gradient(from 120deg, rgba(25, 221, 255, 0.28), transparent 28%, rgba(255, 212, 59, 0.3), transparent 66%, rgba(25, 221, 255, 0.28));
+  box-shadow: 0 0 26px rgba(25, 221, 255, 0.2);
 }
 
 .level-node .level-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 18px;
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
   color: white;
-  background: linear-gradient(180deg, #19ddff, #006dff);
-  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.18), 0 0 18px rgba(25, 221, 255, 0.22);
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.7), transparent 14%),
+    radial-gradient(circle at 72% 72%, rgba(0, 0, 0, 0.24), transparent 28%),
+    linear-gradient(145deg, #19ddff, #6f37ff 48%, #16206f);
+  box-shadow: inset -10px -12px 18px rgba(0, 0, 0, 0.25), inset 8px 8px 14px rgba(255, 255, 255, 0.16), 0 0 28px rgba(25, 221, 255, 0.42);
+  font-size: 1.8rem;
+}
+
+.planet-2 .level-icon {
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.65), transparent 14%),
+    linear-gradient(145deg, #8b51ff, #281060 48%, #100828);
+}
+
+.planet-3 .level-icon {
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.68), transparent 14%),
+    radial-gradient(circle at 64% 64%, rgba(255, 212, 59, 0.22), transparent 25%),
+    linear-gradient(145deg, #ff4b62, #ff7a00 52%, #671700);
+}
+
+.planet-4 .level-icon {
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.7), transparent 14%),
+    linear-gradient(145deg, #28df55, #0f9e9e 48%, #064057);
+}
+
+.planet-5 .level-icon {
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.7), transparent 14%),
+    linear-gradient(145deg, #ffd43b, #ff7a00 50%, #662900);
+}
+
+.planet-6 .level-icon {
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.7), transparent 14%),
+    linear-gradient(145deg, #19ddff, #006dff 48%, #061032);
 }
 
 .level-node-copy {
+  position: relative;
+  z-index: 2;
+  width: 100%;
   min-width: 0;
+  padding: 8px 8px 9px;
+  border: 1px solid rgba(25, 221, 255, 0.22);
+  border-radius: 16px;
+  background: rgba(3, 9, 32, 0.58);
+  backdrop-filter: blur(2px);
 }
 
 .level-node-copy strong,
@@ -687,7 +768,7 @@ button {
 }
 
 .level-node-copy strong {
-  font-size: 1.06rem;
+  font-size: 1.02rem;
   line-height: 1;
 }
 
@@ -700,15 +781,31 @@ button {
 
 .level-node-copy small {
   color: #c8dcff;
-  font-size: 0.76rem;
+  font-size: 0.7rem;
   line-height: 1.05;
 }
 
+.level-stars {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 5px;
+}
+
+.level-stars i {
+  color: rgba(255, 255, 255, 0.26);
+  font-size: 0.72rem;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.08));
+}
+
+.level-stars i.filled {
+  color: var(--gold);
+  filter: drop-shadow(0 0 7px rgba(255, 212, 59, 0.7));
+}
+
 .level-progress-line {
-  position: absolute;
-  left: 106px;
-  right: 12px;
-  bottom: 8px;
+  width: calc(100% - 16px);
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
@@ -730,7 +827,7 @@ button {
 }
 
 .level-node.active .level-icon {
-  background: linear-gradient(180deg, #fff36f, var(--orange));
+  animation: planetPulse 1.7s ease-in-out infinite;
 }
 
 .level-node.complete {
@@ -738,7 +835,7 @@ button {
 }
 
 .level-node.complete .level-icon {
-  background: linear-gradient(180deg, #36f968, #12a434);
+  box-shadow: inset -10px -12px 18px rgba(0, 0, 0, 0.2), inset 8px 8px 14px rgba(255, 255, 255, 0.18), 0 0 30px rgba(40, 223, 85, 0.58);
 }
 
 .level-node.locked {
@@ -1583,6 +1680,11 @@ button {
   100% { transform: scaleX(1); }
 }
 
+@keyframes planetPulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 6px rgba(255, 212, 59, 0.38)); }
+  50% { transform: scale(1.06); filter: drop-shadow(0 0 18px rgba(255, 212, 59, 0.72)); }
+}
+
 @keyframes floatSpark {
   0% { opacity: 0; transform: translate(-50%, 0) scale(0.4); }
   15% { opacity: 1; }
@@ -1604,17 +1706,32 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .level-map {
+    gap: 14px 10px;
+  }
+
   .level-node-button {
-    grid-template-columns: 30px 46px 1fr;
+    min-height: 172px;
+    padding-left: 4px;
+    padding-right: 4px;
   }
 
-  .level-node-button .status-pill {
-    grid-column: 2 / 4;
-    justify-self: start;
+  .planet-orbit {
+    width: 100px;
+    height: 100px;
   }
 
-  .level-progress-line {
-    left: 96px;
+  .level-node .level-icon {
+    width: 74px;
+    height: 74px;
+  }
+
+  .level-node-copy strong {
+    font-size: 0.92rem;
+  }
+
+  .level-node-copy span {
+    font-size: 0.78rem;
   }
 
   .level-detail-card {
