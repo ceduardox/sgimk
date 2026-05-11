@@ -139,10 +139,10 @@ alter table social_missions add column if not exists updated_at timestamptz not 
 
 insert into rewards (rank_number, name, prize_name, required_referrals, icon_class, is_locked)
 values
-  (1, 'Bronce', 'Pasta dental', 3, 'fa-solid fa-tooth', false),
-  (2, 'Cobre', 'Jabon', 6, 'fa-solid fa-soap', false),
-  (3, 'Plata', 'Detergente', 9, 'fa-solid fa-bottle-droplet', false),
-  (4, 'Oro', 'Canasta hogar', 12, 'fa-solid fa-basket-shopping', false)
+  (1, 'Bronce', 'Premio Bronce', 3, 'fa-solid fa-medal', false),
+  (2, 'Cobre', 'Premio Cobre', 6, 'fa-solid fa-shield-halved', false),
+  (3, 'Plata', 'Premio Plata', 9, 'fa-solid fa-gem', false),
+  (4, 'Oro', 'Premio Oro', 12, 'fa-solid fa-crown', false)
 on conflict (rank_number) do update set
   name = excluded.name,
   prize_name = excluded.prize_name,

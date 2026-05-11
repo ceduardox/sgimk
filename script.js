@@ -315,16 +315,13 @@ function renderLevels() {
   const count = validReferrals();
   const rewards = getRewardsForRoad();
   const { reward: activeReward, index: activeIndex } = getActiveRoadReward();
-  const previousGoal = activeIndex <= 0 ? 0 : Number(rewards[activeIndex - 1].required_referrals);
-  const activeGoal = Math.max(1, Number(activeReward.required_referrals) - previousGoal);
-  const activeProgress = Math.max(0, Math.min(activeGoal, count - previousGoal));
-  const activePercent = Math.round((activeProgress / activeGoal) * 100);
+  const activePercent = Math.round((Math.min(count, Number(activeReward.required_referrals)) / Number(activeReward.required_referrals)) * 100);
 
   els.levelSummary.innerHTML = `
     <div>
       <span>Rango actual</span>
       <strong>${escapeHtml(rewardDisplayName(activeReward, activeIndex))}</strong>
-      <small>${activeProgress}/${activeGoal} referidos para subir - ${count}/${activeReward.required_referrals} referidos totales</small>
+      <small>${count}/${activeReward.required_referrals} referidos para llegar a este rango</small>
     </div>
     <b>${activePercent}%</b>
   `;
@@ -332,9 +329,8 @@ function renderLevels() {
   els.levelRoad.innerHTML = rewards.map((reward, index) => {
     const previousGoal = index === 0 ? 0 : Number(rewards[index - 1].required_referrals);
     const required = Number(reward.required_referrals);
-    const segmentGoal = Math.max(1, required - previousGoal);
-    const segmentProgress = Math.max(0, Math.min(segmentGoal, count - previousGoal));
-    const percent = Math.round((segmentProgress / segmentGoal) * 100);
+    const totalProgress = Math.max(0, Math.min(required, count));
+    const percent = Math.round((totalProgress / required) * 100);
     const complete = count >= required;
     const active = count >= previousGoal && count < required;
     const unlocked = !reward.is_locked && (index === 0 || count >= previousGoal);
@@ -348,9 +344,8 @@ function renderLevels() {
         </div>
         <div class="level-node-copy">
           <strong>${escapeHtml(rewardDisplayName(reward, index))}</strong>
-          <span>${escapeHtml(reward.prize_name)}</span>
-          <small>${segmentProgress}/${segmentGoal} para subir - meta total ${required}</small>
-          <div class="level-stars" aria-label="${segmentProgress} de ${segmentGoal} referidos">${renderLevelStars(segmentProgress, segmentGoal)}</div>
+          <small>${totalProgress}/${required} referidos para llegar</small>
+          <div class="level-stars" aria-label="${totalProgress} de ${required} referidos">${renderLevelStars(totalProgress, required)}</div>
         </div>
         <b class="status-pill">${status}</b>
         <div class="level-progress-line"><span></span></div>
@@ -395,7 +390,7 @@ function getLevelInfo(reward) {
   const segmentGoal = Math.max(1, required - previousGoal);
   const count = validReferrals();
   const segmentProgress = Math.max(0, Math.min(segmentGoal, count - previousGoal));
-  const percent = Math.round((segmentProgress / segmentGoal) * 100);
+  const percent = Math.round((Math.min(count, required) / required) * 100);
   const complete = count >= required;
   const active = count >= previousGoal && count < required;
   const unlocked = !reward.is_locked && (index === 0 || count >= previousGoal);
@@ -406,8 +401,8 @@ function getLevelInfo(reward) {
 function levelRules(reward, info) {
   const name = rewardDisplayName(reward, info.index);
   const rules = [
-    `Necesitas ${info.segmentGoal} referidos validos en este tramo para subir de ${name}.`,
-    `Meta total acumulada de este rango: ${info.required} referidos validos.`,
+    `Para llegar al rango ${name} necesitas ${info.required} referidos validos acumulados.`,
+    `Tu avance actual para este rango es ${Math.min(validReferrals(), info.required)}/${info.required} referidos validos.`,
     "Un referido cuenta cuando entra por tu link y revela su premio en su dispositivo.",
     "Los duplicados o cruces sospechosos pueden quedar en revision y no suman hasta validarse."
   ];
@@ -415,7 +410,7 @@ function levelRules(reward, info) {
   if (info.index === 0) {
     rules.push("La mision de TikTok puede dar 1 intento extra, pero no reemplaza los 3 referidos.");
   } else {
-    rules.push(`Primero debes completar el rango anterior. Este tramo pide ${info.segmentGoal} referidos nuevos.`);
+    rules.push("Primero debes completar el rango anterior para desbloquear este nivel.");
   }
 
   if (!state.customer.registered_at) {
@@ -434,8 +429,8 @@ function openLevelDetail(rewardId) {
   els.levelDetailIcon.innerHTML = `<i class="${reward.icon_class}"></i>`;
   els.levelDetailStatus.textContent = status;
   els.levelDetailTitle.textContent = rewardDisplayName(reward, info.index);
-  els.levelDetailPrize.textContent = `Premio: ${reward.prize_name}`;
-  els.levelDetailProgressText.textContent = `${info.segmentProgress}/${info.segmentGoal} referidos para subir - ${validReferrals()}/${info.required} totales`;
+  els.levelDetailPrize.textContent = `Meta de rango: ${info.required} referidos validos`;
+  els.levelDetailProgressText.textContent = `${Math.min(validReferrals(), info.required)}/${info.required} referidos para llegar a ${rewardDisplayName(reward, info.index)}`;
   els.levelDetailProgressBar.style.width = `${info.percent}%`;
   els.levelDetailRules.innerHTML = levelRules(reward, info).map((rule) => `
     <div class="level-rule-row">
@@ -1111,7 +1106,7 @@ function openLevelCompleteModal() {
   const nextIndex = Math.max(0, state.rewards.findIndex((reward) => String(reward.id) === String(nextReward?.id)));
   els.levelCompleteTitle.textContent = `${rewardDisplayName(currentReward, currentIndex)} completado`;
   els.levelCompleteText.textContent = nextReward
-    ? `Tu premio esta listo para reclamar. Tambien desbloqueaste ${rewardDisplayName(nextReward, nextIndex)}: ${nextReward.prize_name}.`
+    ? `Tu premio esta listo para reclamar. Tambien desbloqueaste el rango ${rewardDisplayName(nextReward, nextIndex)}.`
     : "Tu premio esta listo para reclamar. Sigue compartiendo para mejores beneficios.";
   els.levelCompleteModal.hidden = false;
   els.levelCompleteModal.classList.add("show");
