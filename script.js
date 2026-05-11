@@ -181,6 +181,7 @@ function render() {
   const attemptsLeft = Math.max(0, state.maxPrizeAttempts - state.prizeAttempts);
   const lockedPrize = state.isRevealed && attemptsLeft === 0;
   const tiktokMission = getSocialMission("tiktok_follow");
+  const canUseTikTokOpportunity = lockedPrize && tiktokMission?.status !== "completed" && tiktokMission?.status !== "review";
 
   renderPrizeVisual(els.productIcon, prize);
   els.productName.textContent = state.isRevealed ? prize.name : "Premio oculto";
@@ -193,7 +194,7 @@ function render() {
 
   els.revealButton.classList.toggle("waiting-progress", lockedPrize);
   els.revealButton.style.setProperty("--progress", `${progressDegrees}deg`);
-  els.revealButton.disabled = lockedPrize;
+  els.revealButton.disabled = lockedPrize && !canUseTikTokOpportunity;
   if (lockedPrize) {
     els.revealButtonText.textContent = tiktokMission?.status === "pending" ? "VERIFICAR" : "EXTRA";
     els.revealButtonHint.textContent = tiktokMission?.status === "completed" ? "ganado" : "TikTok";
@@ -440,11 +441,16 @@ async function revealPrize() {
 function openPrizeModal() {
   els.prizeModal.hidden = false;
   els.prizeModal.classList.add("show");
-  els.modalPrizeStage.classList.add("spinning");
   els.keepPrizeButton.hidden = true;
   els.retryPrizeButton.hidden = true;
-  els.modalPrizeHint.textContent = `Intento ${state.prizeAttempts + 1} de ${state.maxPrizeAttempts}.`;
-  updatePrizeModal(state.prizePool[0], true);
+  const hasFinalPrize = state.isRevealed && state.prizeAttempts >= state.maxPrizeAttempts;
+  if (hasFinalPrize) {
+    updatePrizeModal(state.selectedPrize, false);
+  } else {
+    els.modalPrizeStage.classList.add("spinning");
+    els.modalPrizeHint.textContent = `Intento ${state.prizeAttempts + 1} de ${state.maxPrizeAttempts}.`;
+    updatePrizeModal(state.prizePool[0], true);
+  }
 }
 
 function closePrizeModal() {
@@ -534,8 +540,8 @@ async function verifyTikTokTask() {
     showToast(result.message || "TikTok verificado.");
     await loadState({ animate: result.status === "completed" });
     if (result.status === "completed") {
-      closePrizeModal();
-      openPrizeModal();
+      els.prizeModal.hidden = false;
+      els.prizeModal.classList.add("show");
       updatePrizeModal(state.selectedPrize, false);
     }
   } catch (error) {
@@ -950,7 +956,7 @@ els.levelCompleteModal.addEventListener("click", (event) => {
   if (event.target === els.levelCompleteModal) closeLevelCompleteModal();
 });
 els.prizeModal.addEventListener("click", (event) => {
-  if (event.target === els.prizeModal) closePrizeModal();
+  if (event.target === els.prizeModal && !els.retryPrizeButton.dataset.extraTask) closePrizeModal();
 });
 document.querySelectorAll("[data-nav]").forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.nav));
