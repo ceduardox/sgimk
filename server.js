@@ -11,6 +11,10 @@ const port = Number(process.env.PORT || 8080);
 const adminUser = process.env.ADMIN_USER || "admin";
 const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
 const captchaSecret = process.env.CAPTCHA_SECRET || `${adminPassword}:${process.env.DATABASE_URL || "local"}`;
+const tikHubApiKey = process.env.TIKHUB_API_KEY || "";
+const tikTokUsername = String(process.env.TIKTOK_USERNAME || "").replace(/^@/, "").trim();
+const tiktokFollowersCacheMs = 30_000;
+let tiktokFollowersCache = null;
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -267,6 +271,128 @@ function validateCaptcha(body) {
   return Boolean(payload && answer && payload.answer === answer);
 }
 
+function findFollowerCount(value, pathParts = []) {
+  if (!value || typeof value !== "object") return null;
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const normalizedKey = key.toLowerCase().replace(/[_-]/g, "");
+    const nextPath = [...pathParts, key];
+    if (
+      ["followercount", "followerscount", "followers", "fans", "fanscount"].includes(normalizedKey) &&
+      (typeof nestedValue === "number" || /^\d+$/.test(String(nestedValue)))
+    ) {
+      return {
+        followers: Number(nestedValue),
+        path: nextPath.join(".")
+      };
+    }
+  }
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (nestedValue && typeof nestedValue === "object") {
+      const found = findFollowerCount(nestedValue, [...pathParts, key]);
+      if (found) return found;
+    }
+  }
+
+  return null;
+}
+
+function compactTikTokProfilePayload(payload) {
+  const candidates = [
+    payload?.data?.userInfo?.user,
+    payload?.data?.user,
+    payload?.data,
+    payload?.userInfo?.user,
+    payload?.user,
+    payload
+  ].filter(Boolean);
+  const profile = candidates[0] || {};
+  return {
+    id: profile.id || profile.uid || profile.user_id || profile.secUid || null,
+    unique_id: profile.uniqueId || profile.unique_id || profile.username || tikTokUsername,
+    nickname: profile.nickname || profile.display_name || profile.name || null,
+    signature: profile.signature || profile.bio || profile.bio_description || null
+  };
+}
+
+async function fetchTikTokFollowers() {
+  if (!tikHubApiKey) {
+    return { status: 503, payload: { ok: false, error: "Falta TIKHUB_API_KEY en Railway" } };
+  }
+  if (!tikTokUsername) {
+    return { status: 503, payload: { ok: false, error: "Falta TIKTOK_USERNAME en Railway" } };
+  }
+
+  const now = Date.now();
+  if (
+    tiktokFollowersCache &&
+    tiktokFollowersCache.username === tikTokUsername &&
+    now - tiktokFollowersCache.fetched_at_ms < tiktokFollowersCacheMs
+  ) {
+    return {
+      status: 200,
+      payload: {
+        ...tiktokFollowersCache.payload,
+        cached: true,
+        cache_age_seconds: Math.round((now - tiktokFollowersCache.fetched_at_ms) / 1000)
+      }
+    };
+  }
+
+  const endpoint = new URL("https://api.tikhub.io/api/v1/tiktok/web/fetch_user_profile");
+  endpoint.searchParams.set("unique_id", tikTokUsername);
+  const response = await fetch(endpoint, {
+    headers: {
+      authorization: `Bearer ${tikHubApiKey}`,
+      accept: "application/json"
+    },
+    signal: AbortSignal.timeout(15000)
+  });
+  const rawText = await response.text();
+  let payload;
+  try {
+    payload = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    payload = { raw_text: rawText.slice(0, 500) };
+  }
+
+  if (!response.ok) {
+    return {
+      status: response.status,
+      payload: {
+        ok: false,
+        username: tikTokUsername,
+        error: "TikHub no respondio correctamente",
+        tikhub_status: response.status,
+        details: payload
+      }
+    };
+  }
+
+  const found = findFollowerCount(payload);
+  const result = {
+    ok: Boolean(found),
+    username: tikTokUsername,
+    followers: found?.followers ?? null,
+    raw_field: found?.path || null,
+    cached: false,
+    fetched_at: new Date(now).toISOString(),
+    profile: compactTikTokProfilePayload(payload)
+  };
+  if (!found) {
+    result.error = "No encontre el contador de seguidores en la respuesta de TikHub";
+    result.response_top_level_keys = Object.keys(payload || {});
+  }
+
+  tiktokFollowersCache = {
+    username: tikTokUsername,
+    fetched_at_ms: now,
+    payload: result
+  };
+  return { status: found ? 200 : 502, payload: result };
+}
+
 function hashPassword(password) {
   const iterations = 120000;
   const salt = crypto.randomBytes(16).toString("hex");
@@ -464,6 +590,13 @@ async function handleApi(req, res) {
 
   if (req.method === "GET" && url.pathname === "/api/captcha/profile") {
     sendJson(res, 200, createCaptchaChallenge());
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/social/tiktok-followers") {
+    if (!requireAdmin(req, res)) return;
+    const result = await fetchTikTokFollowers();
+    sendJson(res, result.status, result.payload);
     return;
   }
 
