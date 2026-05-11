@@ -119,6 +119,105 @@ let viewerZoom = 1;
 let completionShownForGoal = 0;
 let profileFormTouched = false;
 let profileFormHydrated = false;
+let audioContext;
+let lastTapSoundAt = 0;
+
+function getAudioContext() {
+  if (!audioContext) {
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) return null;
+    audioContext = new AudioContextCtor();
+  }
+  if (audioContext.state === "suspended") {
+    audioContext.resume().catch(() => {});
+  }
+  return audioContext;
+}
+
+function playTone(frequency, duration = 0.08, type = "sine", volume = 0.08, delay = 0) {
+  const context = getAudioContext();
+  if (!context) return;
+  const start = context.currentTime + delay;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+}
+
+function playNoise(duration = 0.12, volume = 0.04, delay = 0) {
+  const context = getAudioContext();
+  if (!context) return;
+  const start = context.currentTime + delay;
+  const buffer = context.createBuffer(1, Math.max(1, Math.floor(context.sampleRate * duration)), context.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let index = 0; index < data.length; index += 1) {
+    data[index] = (Math.random() * 2 - 1) * (1 - index / data.length);
+  }
+  const source = context.createBufferSource();
+  const filter = context.createBiquadFilter();
+  const gain = context.createGain();
+  source.buffer = buffer;
+  filter.type = "highpass";
+  filter.frequency.value = 900;
+  gain.gain.setValueAtTime(volume, start);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(context.destination);
+  source.start(start);
+}
+
+function playUiSound(name = "tap") {
+  if (name === "tap") {
+    playTone(540, 0.045, "square", 0.035);
+    playTone(760, 0.045, "sine", 0.025, 0.035);
+    return;
+  }
+  if (name === "nav") {
+    playTone(480, 0.055, "triangle", 0.045);
+    playTone(680, 0.07, "triangle", 0.035, 0.045);
+    return;
+  }
+  if (name === "reveal") {
+    playNoise(0.18, 0.035);
+    playTone(320, 0.08, "sawtooth", 0.045);
+    playTone(620, 0.09, "triangle", 0.045, 0.07);
+    playTone(920, 0.11, "sine", 0.04, 0.15);
+    return;
+  }
+  if (name === "success") {
+    playTone(620, 0.09, "triangle", 0.055);
+    playTone(820, 0.1, "triangle", 0.05, 0.08);
+    playTone(1060, 0.14, "sine", 0.045, 0.17);
+    return;
+  }
+  if (name === "error") {
+    playTone(220, 0.13, "sawtooth", 0.05);
+    playTone(160, 0.16, "sawtooth", 0.04, 0.1);
+    return;
+  }
+  if (name === "modal") {
+    playTone(420, 0.06, "triangle", 0.045);
+    playTone(760, 0.08, "sine", 0.035, 0.045);
+  }
+}
+
+function playButtonTap(event) {
+  const target = event.target.closest("button, a, .product-window, .place-photo");
+  if (!target || target.disabled || target.getAttribute("aria-disabled") === "true") return;
+  const now = performance.now();
+  if (now - lastTapSoundAt < 70) return;
+  lastTapSoundAt = now;
+  playUiSound("tap");
+}
 
 function renderPrizeVisual(container, prize, size = "normal") {
   if (prize?.image) {
@@ -184,6 +283,7 @@ function progressMessage() {
 }
 
 function setView(viewName) {
+  playUiSound("nav");
   els.navButtons.forEach((button) => button.classList.toggle("active", button.dataset.nav === viewName));
 
   els.viewBlocks.forEach((block) => block.classList.toggle("active", block.dataset.view === viewName));
@@ -536,6 +636,7 @@ function getPublicReferralCode() {
 }
 
 async function revealPrize() {
+  playUiSound("reveal");
   if (state.prizeAttempts >= state.maxPrizeAttempts) {
     const tiktokMission = getSocialMission("tiktok_follow");
     if (state.customer.prize_locked_at) {
@@ -613,6 +714,7 @@ async function revealPrize() {
 }
 
 function openPrizeModal() {
+  playUiSound("modal");
   els.prizeModal.hidden = false;
   els.prizeModal.classList.add("show");
   els.keepPrizeButton.hidden = true;
@@ -786,6 +888,7 @@ function openImageViewer() {
 }
 
 function openViewerImage(name, src) {
+  playUiSound("modal");
   viewerZoom = 1;
   els.viewerPrizeName.textContent = name;
   els.viewerPrizeImage.src = src;
@@ -841,6 +944,7 @@ function wait(ms) {
 }
 
 function spawnSparks() {
+  playUiSound("success");
   for (let index = 0; index < 18; index += 1) {
     const spark = document.createElement("i");
     spark.className = "spark fa-solid fa-star";
@@ -1121,12 +1225,17 @@ function closeLevelCompleteModal() {
 }
 
 function showToast(message) {
+  const lowerMessage = String(message || "").toLowerCase();
+  if (/(error|no se pudo|bloqueado|faltan|coinciden|primero|completa|todavia|intenta)/.test(lowerMessage)) {
+    playUiSound("error");
+  }
   window.clearTimeout(toastTimer);
   els.toast.textContent = message;
   els.toast.classList.add("show");
   toastTimer = window.setTimeout(() => els.toast.classList.remove("show"), 2200);
 }
 
+document.addEventListener("click", playButtonTap, true);
 els.revealButton.addEventListener("click", revealPrize);
 els.claimButton.addEventListener("click", claimReward);
 els.profileForm.addEventListener("submit", customizeReferralLink);
