@@ -544,6 +544,208 @@ button {
   background: linear-gradient(180deg, rgba(40, 223, 85, 0.16), rgba(255, 255, 255, 0.08));
 }
 
+.level-page {
+  min-height: calc(100vh - 116px);
+  background:
+    radial-gradient(circle at 80% 8%, rgba(255, 212, 59, 0.18), transparent 34%),
+    radial-gradient(circle at 14% 20%, rgba(25, 221, 255, 0.2), transparent 36%),
+    linear-gradient(180deg, rgba(13, 28, 77, 0.96), rgba(7, 16, 48, 0.96));
+}
+
+.level-page-title h2 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 400;
+  line-height: 0.95;
+  text-shadow: 0 4px 0 #08236e;
+}
+
+.level-summary-card {
+  display: grid;
+  grid-template-columns: 1fr 72px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 13px;
+  border: 1px solid rgba(255, 212, 59, 0.4);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at right, rgba(255, 212, 59, 0.22), transparent 44%),
+    rgba(255, 255, 255, 0.08);
+}
+
+.level-summary-card span,
+.level-summary-card strong,
+.level-summary-card small {
+  display: block;
+}
+
+.level-summary-card span {
+  color: var(--cyan);
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.level-summary-card strong {
+  color: white;
+  font-size: 1.28rem;
+  line-height: 1;
+}
+
+.level-summary-card small {
+  color: #c8dcff;
+  line-height: 1.15;
+}
+
+.level-summary-card b {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  color: #2c1700;
+  background: linear-gradient(180deg, #fff36f, var(--orange));
+  box-shadow: 0 5px 0 #9c4300, 0 0 20px rgba(255, 212, 59, 0.32);
+}
+
+.level-map {
+  position: relative;
+  gap: 12px;
+  padding: 2px 0 4px;
+}
+
+.level-node {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid rgba(25, 221, 255, 0.28);
+  overflow: hidden;
+}
+
+.level-node::before {
+  content: "";
+  position: absolute;
+  left: 32px;
+  top: -12px;
+  width: 4px;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(25, 221, 255, 0.18), rgba(255, 212, 59, 0.55));
+}
+
+.level-node:first-child::before {
+  display: none;
+}
+
+.level-node-button {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px 52px 1fr auto;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  min-height: 84px;
+  padding: 12px;
+  border: 0;
+  color: white;
+  text-align: left;
+  background:
+    linear-gradient(90deg, rgba(25, 221, 255, 0.08), transparent 48%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.level-step {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: #2c1700;
+  background: linear-gradient(180deg, #fff36f, var(--orange));
+  font-weight: 900;
+  box-shadow: 0 4px 0 #9c4300;
+}
+
+.level-node .level-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  color: white;
+  background: linear-gradient(180deg, #19ddff, #006dff);
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.18), 0 0 18px rgba(25, 221, 255, 0.22);
+}
+
+.level-node-copy {
+  min-width: 0;
+}
+
+.level-node-copy strong,
+.level-node-copy span,
+.level-node-copy small {
+  display: block;
+}
+
+.level-node-copy strong {
+  font-size: 1.06rem;
+  line-height: 1;
+}
+
+.level-node-copy span {
+  color: var(--gold);
+  font-size: 0.9rem;
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.level-node-copy small {
+  color: #c8dcff;
+  font-size: 0.76rem;
+  line-height: 1.05;
+}
+
+.level-progress-line {
+  position: absolute;
+  left: 106px;
+  right: 12px;
+  bottom: 8px;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.level-progress-line span {
+  display: block;
+  width: var(--level-progress);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--green), var(--gold), var(--orange));
+  box-shadow: 0 0 12px rgba(255, 212, 59, 0.38);
+}
+
+.level-node.active {
+  border-color: rgba(255, 212, 59, 0.72);
+  box-shadow: 0 0 22px rgba(255, 212, 59, 0.16);
+}
+
+.level-node.active .level-icon {
+  background: linear-gradient(180deg, #fff36f, var(--orange));
+}
+
+.level-node.complete {
+  border-color: rgba(40, 223, 85, 0.72);
+}
+
+.level-node.complete .level-icon {
+  background: linear-gradient(180deg, #36f968, #12a434);
+}
+
+.level-node.locked {
+  opacity: 0.68;
+  filter: grayscale(0.25);
+}
+
 .profile-grid {
   display: grid;
   grid-template-columns: 76px 1fr;
@@ -921,11 +1123,31 @@ button {
   transition: opacity 160ms ease;
 }
 
+.level-detail-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 96;
+  display: grid;
+  place-items: end center;
+  padding: 16px 14px max(16px, env(safe-area-inset-bottom));
+  background: rgba(2, 7, 25, 0.78);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
 .level-complete-modal.show {
   opacity: 1;
 }
 
+.level-detail-modal.show {
+  opacity: 1;
+}
+
 .level-complete-modal[hidden] {
+  display: none;
+}
+
+.level-detail-modal[hidden] {
   display: none;
 }
 
@@ -940,6 +1162,138 @@ button {
     radial-gradient(circle at 50% 16%, rgba(255, 212, 59, 0.3), transparent 40%),
     linear-gradient(180deg, #102a70, #061032);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), 0 0 34px rgba(255, 212, 59, 0.24);
+}
+
+.level-detail-card {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  width: min(100%, 410px);
+  padding: 18px;
+  border: 2px solid rgba(25, 221, 255, 0.52);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 84% 0, rgba(255, 212, 59, 0.2), transparent 42%),
+    linear-gradient(180deg, #102a70, #061032);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  transform: translateY(18px);
+  transition: transform 160ms ease;
+}
+
+.level-detail-modal.show .level-detail-card {
+  transform: translateY(0);
+}
+
+.level-detail-hero {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding-right: 42px;
+}
+
+.level-detail-icon {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 22px;
+  color: white;
+  background: linear-gradient(180deg, #fff36f, var(--orange));
+  font-size: 1.9rem;
+  box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.2), 0 7px 0 #9c4300;
+}
+
+.level-detail-hero span {
+  color: var(--cyan);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.level-detail-hero h2 {
+  margin: 0;
+  color: white;
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.level-detail-hero p {
+  margin: 2px 0 0;
+  color: var(--gold);
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.level-detail-progress {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.level-detail-progress strong {
+  color: white;
+  line-height: 1.05;
+}
+
+.level-detail-progress div {
+  height: 13px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.level-detail-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--green), var(--gold), var(--orange));
+  transition: width 220ms ease;
+}
+
+.level-detail-rules {
+  display: grid;
+  gap: 8px;
+}
+
+.level-rule-row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 9px;
+  align-items: start;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.level-rule-row i {
+  margin-top: 2px;
+  color: var(--green);
+}
+
+.level-rule-row span {
+  color: #d7e6ff;
+  font-size: 0.9rem;
+  line-height: 1.14;
+}
+
+.level-detail-action {
+  min-height: 48px;
+  border: 0;
+  border-radius: 16px;
+  color: #2c1700;
+  background: linear-gradient(180deg, #fff36f, var(--orange));
+  font-weight: 900;
+  box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.24), 0 7px 0 #9c4300;
+}
+
+.level-detail-action:disabled {
+  opacity: 0.52;
+  cursor: default;
+  filter: grayscale(0.4);
 }
 
 .level-complete-card > i {
@@ -1248,5 +1602,22 @@ button {
 
   .main-actions {
     grid-template-columns: 1fr;
+  }
+
+  .level-node-button {
+    grid-template-columns: 30px 46px 1fr;
+  }
+
+  .level-node-button .status-pill {
+    grid-column: 2 / 4;
+    justify-self: start;
+  }
+
+  .level-progress-line {
+    left: 96px;
+  }
+
+  .level-detail-card {
+    padding: 16px 14px;
   }
 }

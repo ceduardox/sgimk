@@ -61,7 +61,7 @@
         </div>
       </section>
 
-      <section class="panel-card app-view active" data-view="refer">
+      <section class="panel-card app-view" data-view="refer">
         <div class="section-title">
           <span>Invita y gana</span>
           <h2>Tu link de referido</h2>
@@ -97,15 +97,16 @@
         <div id="referralList" class="referral-history"></div>
       </section>
 
-      <section class="panel-card app-view active" data-view="rewards">
-        <div class="section-title">
+      <section class="panel-card app-view level-page" data-view="rewards">
+        <div class="section-title level-page-title">
           <span>Camino de niveles</span>
-          <h2>Bronce, Cobre y Plata</h2>
+          <h2>Tu ruta de premios</h2>
         </div>
-        <div class="level-road" id="levelRoad"></div>
+        <div class="level-summary-card" id="levelSummary"></div>
+        <div class="level-road level-map" id="levelRoad"></div>
       </section>
 
-      <section class="panel-card app-view active" data-view="missions">
+      <section class="panel-card app-view" data-view="missions">
         <div class="section-title">
           <span>Energia extra</span>
           <h2>Misiones sociales</h2>
@@ -212,7 +213,7 @@
       <nav class="bottom-nav">
         <button class="active" data-nav="home" type="button"><i class="fa-solid fa-house"></i><span>Inicio</span></button>
         <button data-nav="referrals" type="button"><i class="fa-solid fa-users"></i><span>Mis referidos</span></button>
-        <button class="center-tab" data-nav="rewards" type="button"><i class="fa-solid fa-gift"></i><span>Premios</span></button>
+        <button class="center-tab" data-nav="rewards" type="button"><i class="fa-solid fa-route"></i><span>Niveles</span></button>
         <button data-nav="missions" type="button"><i class="fa-solid fa-bolt"></i><span>Misiones</span></button>
         <button data-nav="profile" type="button"><i class="fa-solid fa-user"></i><span>Perfil</span></button>
       </nav>
@@ -268,6 +269,27 @@
           <button id="completeClaimButton" type="button">Reclamar premio</button>
           <button id="completeReferralsButton" type="button">Ver referidos</button>
         </div>
+      </div>
+    </div>
+    <div class="level-detail-modal" id="levelDetailModal" hidden>
+      <div class="level-detail-card" role="dialog" aria-modal="true" aria-labelledby="levelDetailTitle">
+        <button class="modal-close" id="closeLevelDetailModal" type="button" aria-label="Cerrar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div class="level-detail-hero">
+          <div class="level-detail-icon" id="levelDetailIcon"><i class="fa-solid fa-star"></i></div>
+          <div>
+            <span id="levelDetailStatus">Activo</span>
+            <h2 id="levelDetailTitle">Rango Bronce</h2>
+            <p id="levelDetailPrize">Premio: producto SGI</p>
+          </div>
+        </div>
+        <div class="level-detail-progress">
+          <strong id="levelDetailProgressText">0/3 referidos</strong>
+          <div><span id="levelDetailProgressBar"></span></div>
+        </div>
+        <div class="level-detail-rules" id="levelDetailRules"></div>
+        <button class="level-detail-action" id="levelDetailAction" type="button">Compartir mi link</button>
       </div>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

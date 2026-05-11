@@ -38,6 +38,7 @@ const els = {
   validReferralTotal: document.querySelector("#validReferralTotal"),
   pendingReferralTotal: document.querySelector("#pendingReferralTotal"),
   nextGoalTotal: document.querySelector("#nextGoalTotal"),
+  levelSummary: document.querySelector("#levelSummary"),
   levelRoad: document.querySelector("#levelRoad"),
   missionRows: document.querySelector("#missionRows"),
   navButtons: [...document.querySelectorAll("[data-nav]")],
@@ -89,6 +90,16 @@ const els = {
   levelCompleteText: document.querySelector("#levelCompleteText"),
   completeClaimButton: document.querySelector("#completeClaimButton"),
   completeReferralsButton: document.querySelector("#completeReferralsButton"),
+  levelDetailModal: document.querySelector("#levelDetailModal"),
+  closeLevelDetailModal: document.querySelector("#closeLevelDetailModal"),
+  levelDetailIcon: document.querySelector("#levelDetailIcon"),
+  levelDetailStatus: document.querySelector("#levelDetailStatus"),
+  levelDetailTitle: document.querySelector("#levelDetailTitle"),
+  levelDetailPrize: document.querySelector("#levelDetailPrize"),
+  levelDetailProgressText: document.querySelector("#levelDetailProgressText"),
+  levelDetailProgressBar: document.querySelector("#levelDetailProgressBar"),
+  levelDetailRules: document.querySelector("#levelDetailRules"),
+  levelDetailAction: document.querySelector("#levelDetailAction"),
   fxLayer: document.querySelector("#fxLayer"),
   toast: document.querySelector("#toast")
 };
@@ -173,11 +184,7 @@ function progressMessage() {
 function setView(viewName) {
   els.navButtons.forEach((button) => button.classList.toggle("active", button.dataset.nav === viewName));
 
-  if (viewName === "home") {
-    els.viewBlocks.forEach((block) => block.classList.add("active"));
-  } else {
-    els.viewBlocks.forEach((block) => block.classList.toggle("active", block.dataset.view === viewName));
-  }
+  els.viewBlocks.forEach((block) => block.classList.toggle("active", block.dataset.view === viewName));
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -302,19 +309,139 @@ function formatReferralDate(value) {
 
 function renderLevels() {
   const count = validReferrals();
-  els.levelRoad.innerHTML = state.rewards.map((reward, index) => {
-    const previousGoal = index === 0 ? 0 : state.rewards[index - 1].required_referrals;
-    const complete = count >= reward.required_referrals;
-    const active = count >= previousGoal && count < reward.required_referrals;
+  const rewards = getRewardsForRoad();
+  const activeReward = rewards.find((reward) => count < Number(reward.required_referrals)) || rewards[rewards.length - 1];
+  const activeIndex = rewards.indexOf(activeReward);
+  const previousGoal = activeIndex <= 0 ? 0 : Number(rewards[activeIndex - 1].required_referrals);
+  const activeGoal = Math.max(1, Number(activeReward.required_referrals) - previousGoal);
+  const activeProgress = Math.max(0, Math.min(activeGoal, count - previousGoal));
+  const activePercent = Math.round((activeProgress / activeGoal) * 100);
+
+  els.levelSummary.innerHTML = `
+    <div>
+      <span>Rango actual</span>
+      <strong>${escapeHtml(activeReward.name)}</strong>
+      <small>${activeProgress}/${activeGoal} pasos de este tramo - ${count}/${activeReward.required_referrals} referidos totales</small>
+    </div>
+    <b>${activePercent}%</b>
+  `;
+
+  els.levelRoad.innerHTML = rewards.map((reward, index) => {
+    const previousGoal = index === 0 ? 0 : Number(rewards[index - 1].required_referrals);
+    const required = Number(reward.required_referrals);
+    const segmentGoal = Math.max(1, required - previousGoal);
+    const segmentProgress = Math.max(0, Math.min(segmentGoal, count - previousGoal));
+    const percent = Math.round((segmentProgress / segmentGoal) * 100);
+    const complete = count >= required;
+    const active = count >= previousGoal && count < required;
     const unlocked = !reward.is_locked && (index === 0 || count >= previousGoal);
+    const status = complete ? "Completado" : active ? "Activo" : unlocked ? "Siguiente" : "Bloqueado";
     return `
-    <article class="level-card ${active ? "active" : ""} ${complete ? "complete" : ""}">
-      <div class="level-icon"><i class="${reward.icon_class}"></i></div>
-      <div><strong>${escapeHtml(reward.name)}: ${escapeHtml(reward.prize_name)}</strong><span>${reward.required_referrals} referidos validos para este rango.</span></div>
-      <b class="status-pill">${complete ? "Completado" : active ? "Activo" : unlocked ? "Desbloqueado" : "Bloqueado"}</b>
+    <article class="level-card level-node ${active ? "active" : ""} ${complete ? "complete" : ""} ${!unlocked ? "locked" : ""}" style="--level-progress:${percent}%">
+      <button class="level-node-button" type="button" data-level-detail="${escapeHtml(reward.id)}" aria-label="Ver reglas de ${escapeHtml(reward.name)}">
+        <div class="level-step">${index + 1}</div>
+        <div class="level-icon"><i class="${reward.icon_class}"></i></div>
+        <div class="level-node-copy">
+          <strong>${escapeHtml(reward.name)}</strong>
+          <span>${escapeHtml(reward.prize_name)}</span>
+          <small>${segmentProgress}/${segmentGoal} de este tramo - meta ${required}</small>
+        </div>
+        <b class="status-pill">${status}</b>
+        <div class="level-progress-line"><span></span></div>
+      </button>
     </article>
   `;
   }).join("");
+}
+
+function getRewardsForRoad() {
+  return state.rewards.length ? state.rewards : [
+    { id: "fallback-bronce", name: "Rango Bronce", prize_name: "Premio inicial", required_referrals: state.goal, icon_class: "fa-solid fa-medal", is_locked: false }
+  ];
+}
+
+function getLevelInfo(reward) {
+  const rewards = getRewardsForRoad();
+  const index = Math.max(0, rewards.findIndex((item) => String(item.id) === String(reward.id)));
+  const previousGoal = index === 0 ? 0 : Number(rewards[index - 1].required_referrals);
+  const required = Number(reward.required_referrals);
+  const segmentGoal = Math.max(1, required - previousGoal);
+  const count = validReferrals();
+  const segmentProgress = Math.max(0, Math.min(segmentGoal, count - previousGoal));
+  const percent = Math.round((segmentProgress / segmentGoal) * 100);
+  const complete = count >= required;
+  const active = count >= previousGoal && count < required;
+  const unlocked = !reward.is_locked && (index === 0 || count >= previousGoal);
+
+  return { index, previousGoal, required, segmentGoal, segmentProgress, percent, complete, active, unlocked };
+}
+
+function levelRules(reward, info) {
+  const rules = [
+    `Necesitas ${info.required} referidos validos en total para completar ${reward.name}.`,
+    "Un referido cuenta cuando entra por tu link y revela su premio en su dispositivo.",
+    "Los duplicados o cruces sospechosos pueden quedar en revision y no suman hasta validarse."
+  ];
+
+  if (info.index === 0) {
+    rules.push("La mision de TikTok puede dar 1 intento extra, pero no reemplaza los 3 referidos.");
+  } else {
+    rules.push(`Primero debes completar el rango anterior. Este tramo pide ${info.segmentGoal} referidos nuevos.`);
+  }
+
+  if (!state.customer.registered_at) {
+    rules.push("Para reclamar cualquier premio debes registrar correo, WhatsApp y contrasena en Perfil.");
+  }
+
+  return rules;
+}
+
+function openLevelDetail(rewardId) {
+  const reward = getRewardsForRoad().find((item) => String(item.id) === String(rewardId));
+  if (!reward) return;
+  const info = getLevelInfo(reward);
+  const status = info.complete ? "Completado" : info.active ? "En progreso" : info.unlocked ? "Siguiente rango" : "Bloqueado";
+
+  els.levelDetailIcon.innerHTML = `<i class="${reward.icon_class}"></i>`;
+  els.levelDetailStatus.textContent = status;
+  els.levelDetailTitle.textContent = reward.name;
+  els.levelDetailPrize.textContent = `Premio: ${reward.prize_name}`;
+  els.levelDetailProgressText.textContent = `${info.segmentProgress}/${info.segmentGoal} de este tramo - ${validReferrals()}/${info.required} referidos totales`;
+  els.levelDetailProgressBar.style.width = `${info.percent}%`;
+  els.levelDetailRules.innerHTML = levelRules(reward, info).map((rule) => `
+    <div class="level-rule-row">
+      <i class="fa-solid fa-circle-check"></i>
+      <span>${escapeHtml(rule)}</span>
+    </div>
+  `).join("");
+
+  if (info.complete) {
+    els.levelDetailAction.textContent = "Ver mis referidos";
+    els.levelDetailAction.dataset.levelAction = "referrals";
+  } else if (info.active || info.unlocked) {
+    els.levelDetailAction.textContent = "Compartir mi link";
+    els.levelDetailAction.dataset.levelAction = "refer";
+  } else {
+    els.levelDetailAction.textContent = "Sigue en el rango anterior";
+    els.levelDetailAction.dataset.levelAction = "";
+  }
+  els.levelDetailAction.disabled = !info.complete && !info.active && !info.unlocked;
+  els.levelDetailModal.hidden = false;
+  els.levelDetailModal.classList.add("show");
+}
+
+function closeLevelDetailModal() {
+  els.levelDetailModal.classList.remove("show");
+  window.setTimeout(() => {
+    els.levelDetailModal.hidden = true;
+  }, 160);
+}
+
+function runLevelDetailAction() {
+  const action = els.levelDetailAction.dataset.levelAction;
+  if (!action) return;
+  closeLevelDetailModal();
+  setView(action);
 }
 
 function renderMissions() {
@@ -984,6 +1111,10 @@ els.missionRows.addEventListener("click", (event) => {
   if (button.dataset.tiktokAction === "start") startTikTokTask();
   if (button.dataset.tiktokAction === "verify") verifyTikTokTask();
 });
+els.levelRoad.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-level-detail]");
+  if (button) openLevelDetail(button.dataset.levelDetail);
+});
 document.querySelectorAll("[data-password-toggle]").forEach((button) => {
   button.addEventListener("click", () => togglePasswordVisibility(button));
 });
@@ -1013,6 +1144,11 @@ els.completeReferralsButton.addEventListener("click", () => {
 });
 els.levelCompleteModal.addEventListener("click", (event) => {
   if (event.target === els.levelCompleteModal) closeLevelCompleteModal();
+});
+els.closeLevelDetailModal.addEventListener("click", closeLevelDetailModal);
+els.levelDetailAction.addEventListener("click", runLevelDetailAction);
+els.levelDetailModal.addEventListener("click", (event) => {
+  if (event.target === els.levelDetailModal) closeLevelDetailModal();
 });
 els.prizeModal.addEventListener("click", (event) => {
   if (event.target === els.prizeModal && !els.retryPrizeButton.dataset.extraTask) closePrizeModal();
