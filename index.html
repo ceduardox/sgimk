@@ -59,6 +59,10 @@
           <button class="primary-action" data-nav="refer" type="button"><i class="fa-solid fa-share-nodes"></i> Compartir mi link</button>
           <button class="claim-action" id="claimButton" type="button" disabled><i class="fa-solid fa-ticket"></i> Reclamar premio</button>
         </div>
+        <button class="place-entry-button" data-nav="place" type="button">
+          <i class="fa-solid fa-location-dot"></i>
+          Ver donde recoger tu premio
+        </button>
       </section>
 
       <section class="panel-card app-view" data-view="refer">
@@ -112,6 +116,59 @@
           <h2>Misiones sociales</h2>
         </div>
         <div class="mission-list" id="missionRows"></div>
+      </section>
+
+      <section class="panel-card app-view place-page" data-view="place">
+        <div class="section-title">
+          <span>Confianza y retiro</span>
+          <h2>Dialcruz Importaciones + SGI Market</h2>
+        </div>
+        <div class="place-photo">
+          <img src="dialcruz.png" alt="Local Dialcruz Importaciones">
+          <div>
+            <strong>Retira tu premio en tienda</strong>
+            <span>Productos reales, atencion presencial y ofertas de importadora.</span>
+          </div>
+        </div>
+        <div class="place-info-grid">
+          <article>
+            <i class="fa-solid fa-clock"></i>
+            <strong>Horario</strong>
+            <span>9:00 am a 9:00 pm</span>
+          </article>
+          <article>
+            <i class="fa-solid fa-gift"></i>
+            <strong>Premios</strong>
+            <span>Completa tus referidos y solicita el reclamo desde la app.</span>
+          </article>
+          <article>
+            <i class="fa-solid fa-shield-heart"></i>
+            <strong>Validacion</strong>
+            <span>El admin revisa el reclamo antes de la entrega.</span>
+          </article>
+        </div>
+        <div class="claim-steps">
+          <h3>Como recoger tu premio</h3>
+          <div class="claim-step"><b>1</b><span>Revela tu premio y completa la meta de referidos validos.</span></div>
+          <div class="claim-step"><b>2</b><span>Registra tu perfil con WhatsApp y correo para identificarte.</span></div>
+          <div class="claim-step"><b>3</b><span>Presiona Reclamar premio y espera la revision del equipo.</span></div>
+          <div class="claim-step"><b>4</b><span>Cuando este aprobado, pasa por Dialcruz Importaciones para retirarlo.</span></div>
+        </div>
+        <div class="tiktok-proof">
+          <div class="section-title compact-title">
+            <span>Video del local</span>
+            <h2>Mira el lugar en TikTok</h2>
+          </div>
+          <a class="tiktok-open-button" href="https://www.tiktok.com/@dialcruz_importaciones/video/7450513305753472262" target="_blank" rel="noopener">
+            <i class="fa-brands fa-tiktok"></i> Abrir video en TikTok
+          </a>
+          <blockquote class="tiktok-embed" cite="https://www.tiktok.com/@dialcruz_importaciones/video/7450513305753472262" data-video-id="7450513305753472262">
+            <section>
+              <a target="_blank" title="@dialcruz_importaciones" href="https://www.tiktok.com/@dialcruz_importaciones?refer=embed">@dialcruz_importaciones</a>
+              Horario: 9am a 9pm.
+            </section>
+          </blockquote>
+        </div>
       </section>
 
       <section class="panel-card app-view" data-view="profile">
@@ -215,6 +272,7 @@
         <button data-nav="referrals" type="button"><i class="fa-solid fa-users"></i><span>Mis referidos</span></button>
         <button class="center-tab" data-nav="rewards" type="button"><i class="fa-solid fa-route"></i><span>Niveles</span></button>
         <button data-nav="missions" type="button"><i class="fa-solid fa-bolt"></i><span>Misiones</span></button>
+        <button data-nav="place" type="button"><i class="fa-solid fa-location-dot"></i><span>Lugar</span></button>
         <button data-nav="profile" type="button"><i class="fa-solid fa-user"></i><span>Perfil</span></button>
       </nav>
     </main>
@@ -295,5 +353,6 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="script.js"></script>
+    <script async src="https://www.tiktok.com/embed.js"></script>
   </body>
 </html>
