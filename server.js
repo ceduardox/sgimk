@@ -458,6 +458,24 @@ async function getTikTokMission(customerId) {
 }
 
 async function startTikTokMission(customerId) {
+  const customer = await query(
+    `select selected_prize_id, prize_attempts, extra_prize_attempts, prize_locked_at
+     from customers
+     where id = $1`,
+    [customerId]
+  );
+  const customerRow = customer.rows[0];
+  const maxAttempts = 3 + Number(customerRow?.extra_prize_attempts || 0);
+  if (!customerRow?.selected_prize_id) {
+    return { status: 400, payload: { ok: false, error: "Primero revela tu premio" } };
+  }
+  if (customerRow?.prize_locked_at) {
+    return { status: 400, payload: { ok: false, error: "Ya elegiste quedarte con este premio" } };
+  }
+  if (Number(customerRow?.prize_attempts || 0) < maxAttempts) {
+    return { status: 400, payload: { ok: false, error: "La tarea TikTok se activa cuando agotas tus intentos" } };
+  }
+
   const current = await getTikTokMission(customerId);
   if (current?.status === "completed") {
     return {
@@ -468,6 +486,29 @@ async function startTikTokMission(customerId) {
         already_completed: true,
         profile_url: tiktokProfileUrl(),
         message: "Ya ganaste este intento extra."
+      }
+    };
+  }
+  if (current?.status === "review") {
+    return {
+      status: 409,
+      payload: {
+        ok: false,
+        status: "review",
+        profile_url: tiktokProfileUrl(),
+        message: "Tu tarea TikTok esta en revision."
+      }
+    };
+  }
+  if (current?.status === "pending") {
+    return {
+      status: 200,
+      payload: {
+        ok: true,
+        status: "pending",
+        followers_before: current.followers_before,
+        profile_url: tiktokProfileUrl(),
+        message: "Tarea ya iniciada. Sigue TikTok y vuelve a verificar."
       }
     };
   }
@@ -905,9 +946,13 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/prizes/reveal") {
     const { customerId } = await ensureRequestCustomer(req, res);
     const customer = await query(
-      "select prize_attempts, extra_prize_attempts from customers where id = $1",
+      "select prize_attempts, extra_prize_attempts, prize_locked_at from customers where id = $1",
       [customerId]
     );
+    if (customer.rows[0]?.prize_locked_at) {
+      sendJson(res, 400, { error: "Ya elegiste quedarte con tu premio" });
+      return;
+    }
     const attempts = Number(customer.rows[0]?.prize_attempts || 0);
     const maxAttempts = 3 + Number(customer.rows[0]?.extra_prize_attempts || 0);
     if (attempts >= maxAttempts) {
@@ -929,9 +974,15 @@ async function handleApi(req, res) {
            selected_prize_image = $3,
            prize_attempts = prize_attempts + 1
        where id = $4
+         and prize_locked_at is null
+         and prize_attempts < (3 + extra_prize_attempts)
        returning prize_attempts`,
       [prize.id, prize.name, prize.image, customerId]
     );
+    if (!result.rowCount) {
+      sendJson(res, 400, { error: `Ya usaste tus ${maxAttempts} intentos` });
+      return;
+    }
     sendJson(res, 200, { prize, prize_attempts: result.rows[0].prize_attempts, max_prize_attempts: maxAttempts });
     return;
   }
@@ -940,9 +991,10 @@ async function handleApi(req, res) {
     const { customerId } = await ensureRequestCustomer(req, res);
     const result = await query(
       `update customers
-       set prize_attempts = 3 + extra_prize_attempts
+       set prize_attempts = 3 + extra_prize_attempts,
+           prize_locked_at = coalesce(prize_locked_at, now())
        where id = $1 and selected_prize_id is not null
-       returning selected_prize_id, selected_prize_name, selected_prize_image, prize_attempts`,
+       returning selected_prize_id, selected_prize_name, selected_prize_image, prize_attempts, prize_locked_at`,
       [customerId]
     );
     if (!result.rowCount) {
@@ -957,7 +1009,8 @@ async function handleApi(req, res) {
         level: "bronce"
       },
       prize_attempts: result.rows[0].prize_attempts,
-      max_prize_attempts: result.rows[0].prize_attempts
+      max_prize_attempts: result.rows[0].prize_attempts,
+      prize_locked_at: result.rows[0].prize_locked_at
     });
     return;
   }
@@ -1079,13 +1132,28 @@ async function handleApi(req, res) {
     }
 
     const result = await query(
+      `select *
+       from reward_claims
+       where customer_id = $1
+         and selected_prize_name = $2
+         and status in ('pending', 'review', 'approved')
+       order by created_at desc
+       limit 1`,
+      [customerId, selectedPrizeName]
+    );
+    if (result.rowCount) {
+      sendJson(res, 200, { ...result.rows[0], already_exists: true });
+      return;
+    }
+
+    const claim = await query(
       `insert into reward_claims
         (customer_id, email, whatsapp_country_code, whatsapp_number, selected_prize_name, selected_prize_image, status, valid_referrals_count)
        values ($1, $2, $3, $4, $5, $6, 'pending', $7)
        returning *`,
       [customerId, contactEmail, contactCountry, contactWhatsapp, selectedPrizeName, selectedPrizeImage, validCount.rows[0].count]
     );
-    sendJson(res, 201, result.rows[0]);
+    sendJson(res, 201, claim.rows[0]);
     return;
   }
 
@@ -1149,6 +1217,61 @@ async function handleApi(req, res) {
         id
       ]
     );
+    sendJson(res, 200, result.rows[0]);
+    return;
+  }
+
+  if (req.method === "PATCH" && url.pathname.startsWith("/api/admin/social-missions/")) {
+    if (!requireAdmin(req, res)) return;
+    const id = Number(url.pathname.split("/").pop());
+    const body = await readBody(req);
+    const status = String(body.status || "").trim();
+    if (!["pending", "completed", "review", "rejected"].includes(status)) {
+      sendJson(res, 400, { error: "Estado invalido" });
+      return;
+    }
+
+    const result = await query(
+      `update social_missions
+       set status = $1,
+           verified_at = case when $1 in ('completed', 'rejected') then coalesce(verified_at, now()) else verified_at end,
+           updated_at = now()
+       where id = $2
+       returning *`,
+      [status, id]
+    );
+    if (!result.rowCount) {
+      sendJson(res, 404, { error: "Mision social no encontrada" });
+      return;
+    }
+    if (status === "completed" && result.rows[0].reward_type === "extra_attempt") {
+      await query(
+        "update customers set extra_prize_attempts = greatest(extra_prize_attempts, $1) where id = $2",
+        [Number(result.rows[0].reward_value || 1), result.rows[0].customer_id]
+      );
+    }
+    sendJson(res, 200, result.rows[0]);
+    return;
+  }
+
+  if (req.method === "PATCH" && url.pathname.startsWith("/api/admin/reward-claims/")) {
+    if (!requireAdmin(req, res)) return;
+    const id = Number(url.pathname.split("/").pop());
+    const body = await readBody(req);
+    const status = String(body.status || "").trim();
+    if (!["pending", "review", "approved", "completed", "rejected"].includes(status)) {
+      sendJson(res, 400, { error: "Estado invalido" });
+      return;
+    }
+
+    const result = await query(
+      "update reward_claims set status = $1 where id = $2 returning *",
+      [status, id]
+    );
+    if (!result.rowCount) {
+      sendJson(res, 404, { error: "Reclamo no encontrado" });
+      return;
+    }
     sendJson(res, 200, result.rows[0]);
     return;
   }

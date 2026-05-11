@@ -5,6 +5,8 @@ const els = {
   reward: document.querySelector("#adminReward"),
   referralForm: document.querySelector("#referralForm"),
   referralList: document.querySelector("#adminReferralList"),
+  claimList: document.querySelector("#adminClaimList"),
+  socialMissionList: document.querySelector("#adminSocialMissionList"),
   rewards: document.querySelector("#adminRewards"),
   missions: document.querySelector("#adminMissions"),
   resetTestDataButton: document.querySelector("#resetTestDataButton"),
@@ -19,6 +21,15 @@ function showToast(message) {
   els.toast.textContent = message;
   els.toast.classList.add("show");
   toastTimer = window.setTimeout(() => els.toast.classList.remove("show"), 1800);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 async function api(path, options) {
@@ -48,7 +59,7 @@ function renderAdmin(state) {
   els.customerSelect.innerHTML = state.customers.length
     ? state.customers.map((customer) => `
       <option value="${customer.id}" ${String(customer.id) === String(state.customer.id) ? "selected" : ""}>
-        ${customer.name} - /r/${customer.public_referral_code}
+        ${escapeHtml(customer.name)} - /r/${escapeHtml(customer.public_referral_code)}
       </option>
     `).join("")
     : `<option value="">Sin usuarios</option>`;
@@ -61,8 +72,8 @@ function renderAdmin(state) {
     ? state.referrals.map((referral) => `
       <div class="admin-row">
         <div>
-          <strong>${referral.referred_name}</strong>
-          <span>${referral.referred_phone || "Sin telefono"} - ${referral.status}</span>
+          <strong>${escapeHtml(referral.referred_name)}</strong>
+          <span>${escapeHtml(referral.referred_phone || "Sin telefono")} - ${escapeHtml(referral.status)}</span>
         </div>
         <div class="row-actions">
           <button class="danger" data-delete-referral="${referral.id}" type="button">Eliminar</button>
@@ -71,10 +82,41 @@ function renderAdmin(state) {
     `).join("")
     : `<div class="admin-row"><span>No hay referidos.</span></div>`;
 
+  els.claimList.innerHTML = state.rewardClaims?.length
+    ? state.rewardClaims.map((claim) => `
+      <div class="admin-row">
+        <div>
+          <strong>${escapeHtml(claim.selected_prize_name || "Premio")}</strong>
+          <span>${escapeHtml(claim.email || "Sin correo")} - ${escapeHtml(claim.whatsapp_country_code || "")} ${escapeHtml(claim.whatsapp_number || "")} - ${escapeHtml(claim.status)}</span>
+        </div>
+        <div class="row-actions">
+          <button class="blue" data-claim-status="${claim.id}" data-status="approved" type="button">Aprobar</button>
+          <button class="blue" data-claim-status="${claim.id}" data-status="completed" type="button">Entregado</button>
+          <button class="danger" data-claim-status="${claim.id}" data-status="rejected" type="button">Rechazar</button>
+        </div>
+      </div>
+    `).join("")
+    : `<div class="admin-row"><span>No hay reclamos.</span></div>`;
+
+  els.socialMissionList.innerHTML = state.socialMissions?.length
+    ? state.socialMissions.map((mission) => `
+      <div class="admin-row">
+        <div>
+          <strong>${escapeHtml(mission.mission_key)}</strong>
+          <span>${escapeHtml(mission.status)} - antes: ${mission.followers_before ?? "-"} / despues: ${mission.followers_after ?? "-"}</span>
+        </div>
+        <div class="row-actions">
+          <button class="blue" data-social-status="${mission.id}" data-status="completed" type="button">Dar intento</button>
+          <button class="danger" data-social-status="${mission.id}" data-status="rejected" type="button">Rechazar</button>
+        </div>
+      </div>
+    `).join("")
+    : `<div class="admin-row"><span>No hay misiones sociales.</span></div>`;
+
   els.rewards.innerHTML = state.rewards.map((reward) => `
     <div class="admin-row">
       <div>
-        <strong>Rango ${reward.rank_number}: ${reward.prize_name}</strong>
+        <strong>Rango ${reward.rank_number}: ${escapeHtml(reward.prize_name)}</strong>
         <span>Meta: ${reward.required_referrals} referidos - ${reward.is_locked ? "Bloqueado" : "Visible"}</span>
       </div>
       <div class="row-actions">
@@ -86,7 +128,7 @@ function renderAdmin(state) {
   els.missions.innerHTML = state.missions.map((mission) => `
     <div class="admin-row">
       <div>
-        <strong>${mission.title}</strong>
+        <strong>${escapeHtml(mission.title)}</strong>
         <span>+${mission.reward_points} puntos - ${mission.is_completed ? "Completada" : "Pendiente"}</span>
       </div>
       <div class="row-actions">
@@ -147,6 +189,8 @@ document.addEventListener("click", async (event) => {
   const deleteButton = event.target.closest("[data-delete-referral]");
   const missionButton = event.target.closest("[data-toggle-mission]");
   const rewardButton = event.target.closest("[data-edit-reward]");
+  const socialStatusButton = event.target.closest("[data-social-status]");
+  const claimStatusButton = event.target.closest("[data-claim-status]");
 
   try {
     if (deleteButton) {
@@ -178,6 +222,24 @@ document.addEventListener("click", async (event) => {
         })
       });
       showToast("Premio actualizado.");
+      await loadAdmin();
+    }
+
+    if (socialStatusButton) {
+      await api(`/api/admin/social-missions/${socialStatusButton.dataset.socialStatus}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: socialStatusButton.dataset.status })
+      });
+      showToast("Mision social actualizada.");
+      await loadAdmin();
+    }
+
+    if (claimStatusButton) {
+      await api(`/api/admin/reward-claims/${claimStatusButton.dataset.claimStatus}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: claimStatusButton.dataset.status })
+      });
+      showToast("Reclamo actualizado.");
       await loadAdmin();
     }
   } catch (error) {

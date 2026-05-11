@@ -558,6 +558,12 @@ button {
   box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.16), 0 5px 12px rgba(0, 0, 0, 0.2);
 }
 
+.mission-actions button:disabled {
+  opacity: 0.48;
+  cursor: default;
+  filter: grayscale(0.35);
+}
+
 .level-card.active {
   border: 1px solid rgba(255, 212, 59, 0.48);
 }

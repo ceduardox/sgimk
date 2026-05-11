@@ -122,6 +122,15 @@ function normalizePrizeImage(src) {
   return src.startsWith("/") ? src : `/${src}`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function webpFallbackForImage(src) {
   const cleanSrc = String(src || "").split("?")[0];
   return cleanSrc.replace(/\.(jpe?g|png)$/i, ".webp");
@@ -180,24 +189,28 @@ function render() {
   const progressDegrees = Math.min(360, Math.round((Math.min(count, state.goal) / state.goal) * 360));
   const attemptsLeft = Math.max(0, state.maxPrizeAttempts - state.prizeAttempts);
   const lockedPrize = state.isRevealed && attemptsLeft === 0;
+  const prizeLocked = Boolean(state.customer.prize_locked_at);
   const tiktokMission = getSocialMission("tiktok_follow");
-  const canUseTikTokOpportunity = lockedPrize && tiktokMission?.status !== "completed" && tiktokMission?.status !== "review";
+  const canUseTikTokOpportunity = lockedPrize && !prizeLocked && tiktokMission?.status !== "completed" && tiktokMission?.status !== "review";
 
   renderPrizeVisual(els.productIcon, prize);
   els.productName.textContent = state.isRevealed ? prize.name : "Premio oculto";
   els.progressLabel.textContent = `${Math.min(count, state.goal)}/${state.goal} referidos validos`;
   els.progressHint.textContent = progressMessage();
-  els.claimButton.disabled = !complete;
-  els.claimButton.innerHTML = complete
+  const canClaim = complete && state.isRevealed;
+  els.claimButton.disabled = !canClaim;
+  els.claimButton.innerHTML = canClaim
     ? `<i class="fa-solid fa-ticket"></i> Reclamar premio`
-    : `<i class="fa-solid fa-lock"></i> Reclamo bloqueado`;
+    : state.isRevealed
+      ? `<i class="fa-solid fa-lock"></i> Reclamo bloqueado`
+      : `<i class="fa-solid fa-gift"></i> Primero revela`;
 
   els.revealButton.classList.toggle("waiting-progress", lockedPrize);
   els.revealButton.style.setProperty("--progress", `${progressDegrees}deg`);
   els.revealButton.disabled = lockedPrize && !canUseTikTokOpportunity;
   if (lockedPrize) {
-    els.revealButtonText.textContent = tiktokMission?.status === "pending" ? "VERIFICAR" : "EXTRA";
-    els.revealButtonHint.textContent = tiktokMission?.status === "completed" ? "ganado" : "TikTok";
+    els.revealButtonText.textContent = prizeLocked ? "FINAL" : tiktokMission?.status === "pending" ? "VERIFICAR" : "EXTRA";
+    els.revealButtonHint.textContent = prizeLocked ? "elegido" : tiktokMission?.status === "completed" ? "ganado" : "TikTok";
   } else if (state.isRevealed) {
     els.revealButtonText.textContent = `INTENTO ${state.prizeAttempts + 1}`;
     els.revealButtonHint.textContent = `te quedan ${attemptsLeft}`;
@@ -260,10 +273,10 @@ function renderReferralList() {
     <div class="status-row">
       <i class="fa-solid ${referral.status === "valid" ? "fa-circle-check" : referral.status === "review" ? "fa-triangle-exclamation" : "fa-clock"}"></i>
       <div>
-        <strong>${referral.referred_name}</strong>
-        <span>${statusLabel(referral.status)} - ${formatReferralDate(referral.created_at)}</span>
+        <strong>${escapeHtml(referral.referred_name)}</strong>
+        <span>${escapeHtml(statusLabel(referral.status))} - ${escapeHtml(formatReferralDate(referral.created_at))}</span>
       </div>
-      <b class="status-pill">${referral.status}</b>
+      <b class="status-pill">${escapeHtml(referral.status)}</b>
     </div>
   `);
   els.referralPreviewList.innerHTML = rows.slice(0, 3).join("");
@@ -297,7 +310,7 @@ function renderLevels() {
     return `
     <article class="level-card ${active ? "active" : ""} ${complete ? "complete" : ""}">
       <div class="level-icon"><i class="${reward.icon_class}"></i></div>
-      <div><strong>${reward.name}: ${reward.prize_name}</strong><span>${reward.required_referrals} referidos validos para este rango.</span></div>
+      <div><strong>${escapeHtml(reward.name)}: ${escapeHtml(reward.prize_name)}</strong><span>${reward.required_referrals} referidos validos para este rango.</span></div>
       <b class="status-pill">${complete ? "Completado" : active ? "Activo" : unlocked ? "Desbloqueado" : "Bloqueado"}</b>
     </article>
   `;
@@ -309,19 +322,24 @@ function renderMissions() {
   const tiktokStatus = tiktokMission?.status || "idle";
   const rows = state.missions.map((mission) => {
     if (Number(mission.id) === 2) {
+      const attemptsExhausted = state.isRevealed && state.prizeAttempts >= state.maxPrizeAttempts;
+      const prizeLocked = Boolean(state.customer.prize_locked_at);
+      const disabled = (!attemptsExhausted || prizeLocked) && !["pending", "completed", "review"].includes(tiktokStatus);
       return `
         <article class="mission-row mission-feature ${tiktokStatus}">
           <div class="mission-icon"><i class="fa-brands fa-tiktok"></i></div>
           <div>
             <strong>Seguir TikTok</strong>
-            <span>${tiktokMissionText(tiktokStatus)}</span>
+            <span>${escapeHtml(disabled ? "Se activa cuando agotas tus intentos." : tiktokMissionText(tiktokStatus))}</span>
           </div>
           <div class="mission-actions">
             ${tiktokStatus === "completed"
               ? `<b class="status-pill">+1 intento</b>`
+              : tiktokStatus === "review"
+                ? `<b class="status-pill">Revision</b>`
               : tiktokStatus === "pending"
                 ? `<button type="button" data-tiktok-action="verify">Ya segui</button>`
-                : `<button type="button" data-tiktok-action="start">Ganar intento</button>`}
+                : `<button type="button" data-tiktok-action="start" ${disabled ? "disabled" : ""}>Ganar intento</button>`}
           </div>
         </article>
       `;
@@ -330,7 +348,7 @@ function renderMissions() {
     return `
       <article class="mission-row muted-mission">
         <div class="mission-icon"><i class="${mission.icon_class}"></i></div>
-        <div><strong>${mission.title}</strong><span>Proximamente para energia extra.</span></div>
+        <div><strong>${escapeHtml(mission.title)}</strong><span>Proximamente para energia extra.</span></div>
         <b class="status-pill">Pronto</b>
       </article>
     `;
@@ -369,6 +387,11 @@ function getPublicReferralCode() {
 async function revealPrize() {
   if (state.prizeAttempts >= state.maxPrizeAttempts) {
     const tiktokMission = getSocialMission("tiktok_follow");
+    if (state.customer.prize_locked_at) {
+      openPrizeModal();
+      updatePrizeModal(state.selectedPrize, false);
+      return;
+    }
     if (tiktokMission?.status === "pending") {
       await verifyTikTokTask();
       return;
@@ -466,7 +489,8 @@ function updatePrizeModal(prize, isSpinning) {
   const canKeepPrize = state.isRevealed && !isSpinning;
   const canRetry = state.isRevealed && !isSpinning && state.prizeAttempts < state.maxPrizeAttempts;
   const tiktokMission = getSocialMission("tiktok_follow");
-  const canStartTikTok = state.isRevealed && !isSpinning && state.prizeAttempts >= state.maxPrizeAttempts && tiktokMission?.status !== "completed" && tiktokMission?.status !== "review";
+  const prizeLocked = Boolean(state.customer.prize_locked_at);
+  const canStartTikTok = state.isRevealed && !isSpinning && !prizeLocked && state.prizeAttempts >= state.maxPrizeAttempts && tiktokMission?.status !== "completed" && tiktokMission?.status !== "review";
   els.attemptCounter.textContent = `Intento ${Math.max(1, state.prizeAttempts || nextAttempt)} de ${state.maxPrizeAttempts}`;
   els.modalPrizeImage.src = normalizePrizeImage(prize.image);
   els.modalPrizeImage.alt = prize.name;
@@ -491,6 +515,8 @@ function updatePrizeModal(prize, isSpinning) {
         ? (tiktokMission?.status === "pending"
           ? "Cuando ya sigas nuestra cuenta, toca verificar para desbloquear 1 intento extra."
           : "Te quedaste sin intentos. Sigue nuestro TikTok y verifica la tarea para desbloquear 1 intento extra.")
+        : prizeLocked
+          ? "Elegiste quedarte con este premio. Completa los referidos para reclamarlo."
         : "Este es tu premio final. Completa los referidos para reclamarlo.";
 }
 
@@ -579,6 +605,7 @@ function keepCurrentPrize() {
       state.selectedPrize = result.prize;
       state.prizeAttempts = result.prize_attempts;
       state.maxPrizeAttempts = Number(result.max_prize_attempts || state.maxPrizeAttempts);
+      state.customer.prize_locked_at = result.prize_locked_at || new Date().toISOString();
       updatePrizeModal(state.selectedPrize, false);
       closePrizeModal();
       render();
@@ -744,7 +771,7 @@ async function claimReward() {
   }
 
   if (state.referralCount < state.goal) {
-    showToast("Completa 3 referidos validos antes de reclamar.");
+    showToast(`Completa ${state.goal} referidos validos antes de reclamar.`);
     return;
   }
 
@@ -761,7 +788,7 @@ async function claimReward() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "No se pudo crear el reclamo");
-    showToast("Solicitud de reclamo creada. Admin revisara la entrega.");
+    showToast(result.already_exists ? "Tu reclamo ya estaba enviado." : "Solicitud de reclamo creada. Admin revisara la entrega.");
   } catch (error) {
     showToast(error.message);
   }

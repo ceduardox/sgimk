@@ -44,7 +44,7 @@ async function ensureCustomerForDevice(deviceId) {
 async function getClubState(customerId = 1) {
   const client = await pool.connect();
   try {
-    const [customer, referrals, validReferrals, rewards, missions, socialMissions] = await Promise.all([
+    const [customer, referrals, validReferrals, rewards, missions, socialMissions, rewardClaims] = await Promise.all([
       client.query("select * from customers where id = $1", [customerId]),
       client.query(
         "select * from referrals where customer_id = $1 order by created_at desc",
@@ -56,7 +56,8 @@ async function getClubState(customerId = 1) {
       ),
       client.query("select * from rewards order by required_referrals asc"),
       client.query("select * from missions order by id asc"),
-      client.query("select * from social_missions where customer_id = $1 order by created_at desc", [customerId])
+      client.query("select * from social_missions where customer_id = $1 order by created_at desc", [customerId]),
+      client.query("select * from reward_claims where customer_id = $1 order by created_at desc", [customerId])
     ]);
 
     if (!customer.rows[0]) {
@@ -85,7 +86,8 @@ async function getClubState(customerId = 1) {
       currentReward,
       rewards: rewards.rows,
       missions: missions.rows,
-      socialMissions: socialMissions.rows
+      socialMissions: socialMissions.rows,
+      rewardClaims: rewardClaims.rows
     };
   } finally {
     client.release();

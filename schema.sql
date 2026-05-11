@@ -16,6 +16,7 @@ create table if not exists customers (
   selected_prize_image text,
   prize_attempts integer not null default 0,
   extra_prize_attempts integer not null default 0,
+  prize_locked_at timestamptz,
   avatar_url text,
   created_at timestamptz not null default now()
 );
@@ -34,6 +35,7 @@ alter table customers add column if not exists selected_prize_name text;
 alter table customers add column if not exists selected_prize_image text;
 alter table customers add column if not exists prize_attempts integer not null default 0;
 alter table customers add column if not exists extra_prize_attempts integer not null default 0;
+alter table customers add column if not exists prize_locked_at timestamptz;
 
 create table if not exists referrals (
   id bigserial primary key,
