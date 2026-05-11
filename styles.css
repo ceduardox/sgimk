@@ -670,6 +670,22 @@ button {
   line-height: 1.05;
 }
 
+.maps-button {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-top: 12px;
+  border-radius: 15px;
+  color: #2c1700;
+  text-decoration: none;
+  background: linear-gradient(180deg, #fff36f, var(--orange));
+  font-weight: 900;
+  box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.22), 0 7px 0 #9c4300, 0 0 18px rgba(255, 212, 59, 0.24);
+}
+
 .claim-steps {
   display: grid;
   gap: 8px;
