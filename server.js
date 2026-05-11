@@ -13,6 +13,8 @@ const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
 const captchaSecret = process.env.CAPTCHA_SECRET || `${adminPassword}:${process.env.DATABASE_URL || "local"}`;
 const tikHubApiKey = process.env.TIKHUB_API_KEY || "";
 const tikTokUsername = String(process.env.TIKTOK_USERNAME || "").replace(/^@/, "").trim();
+const tikTokUserId = String(process.env.TIKTOK_USER_ID || "").trim();
+const tikTokSecUserId = String(process.env.TIKTOK_SEC_USER_ID || "").trim();
 const tiktokFollowersCacheMs = 30_000;
 let tiktokFollowersCache = null;
 
@@ -316,6 +318,57 @@ function compactTikTokProfilePayload(payload) {
   };
 }
 
+async function callTikHubEndpoint(endpoint) {
+  const response = await fetch(endpoint.url, {
+    headers: {
+      authorization: `Bearer ${tikHubApiKey}`,
+      accept: "application/json"
+    },
+    signal: AbortSignal.timeout(15000)
+  });
+  const rawText = await response.text();
+  let payload;
+  try {
+    payload = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    payload = { raw_text: rawText.slice(0, 500) };
+  }
+
+  return {
+    name: endpoint.name,
+    url_path: endpoint.url.pathname,
+    status: response.status,
+    ok: response.ok,
+    payload
+  };
+}
+
+function createTikHubProfileEndpoints() {
+  const endpoints = [];
+
+  if (tikTokSecUserId) {
+    const appBySecUser = new URL("https://api.tikhub.io/api/v1/tiktok/app/v3/handler_user_profile");
+    appBySecUser.searchParams.set("sec_user_id", tikTokSecUserId);
+    endpoints.push({ name: "app_v3_sec_user_id", url: appBySecUser });
+  }
+
+  if (tikTokUserId) {
+    const appByUserId = new URL("https://api.tikhub.io/api/v1/tiktok/app/v3/handler_user_profile");
+    appByUserId.searchParams.set("user_id", tikTokUserId);
+    endpoints.push({ name: "app_v3_user_id", url: appByUserId });
+  }
+
+  const appByUniqueId = new URL("https://api.tikhub.io/api/v1/tiktok/app/v3/handler_user_profile");
+  appByUniqueId.searchParams.set("unique_id", tikTokUsername);
+  endpoints.push({ name: "app_v3_unique_id", url: appByUniqueId });
+
+  const webByUniqueId = new URL("https://api.tikhub.io/api/v1/tiktok/web/fetch_user_profile");
+  webByUniqueId.searchParams.set("unique_id", tikTokUsername);
+  endpoints.push({ name: "web_unique_id", url: webByUniqueId });
+
+  return endpoints;
+}
+
 async function fetchTikTokFollowers() {
   if (!tikHubApiKey) {
     return { status: 503, payload: { ok: false, error: "Falta TIKHUB_API_KEY en Railway" } };
@@ -340,57 +393,55 @@ async function fetchTikTokFollowers() {
     };
   }
 
-  const endpoint = new URL("https://api.tikhub.io/api/v1/tiktok/web/fetch_user_profile");
-  endpoint.searchParams.set("unique_id", tikTokUsername);
-  const response = await fetch(endpoint, {
-    headers: {
-      authorization: `Bearer ${tikHubApiKey}`,
-      accept: "application/json"
-    },
-    signal: AbortSignal.timeout(15000)
-  });
-  const rawText = await response.text();
-  let payload;
-  try {
-    payload = rawText ? JSON.parse(rawText) : {};
-  } catch {
-    payload = { raw_text: rawText.slice(0, 500) };
+  const attempts = [];
+  let selected = null;
+  for (const endpoint of createTikHubProfileEndpoints()) {
+    const attempt = await callTikHubEndpoint(endpoint);
+    const found = attempt.ok ? findFollowerCount(attempt.payload) : null;
+    attempts.push({
+      name: attempt.name,
+      url_path: attempt.url_path,
+      status: attempt.status,
+      ok: attempt.ok,
+      follower_field: found?.path || null,
+      error_code: attempt.payload?.detail?.code || attempt.payload?.code || null,
+      message: attempt.payload?.detail?.message || attempt.payload?.message || null,
+      docs: attempt.payload?.detail?.docs || attempt.payload?.docs || null
+    });
+
+    if (found) {
+      selected = { attempt, found };
+      break;
+    }
   }
 
-  if (!response.ok) {
-    return {
-      status: response.status,
-      payload: {
-        ok: false,
-        username: tikTokUsername,
-        error: "TikHub no respondio correctamente",
-        tikhub_status: response.status,
-        details: payload
-      }
-    };
-  }
-
-  const found = findFollowerCount(payload);
-  const result = {
-    ok: Boolean(found),
+  const result = selected ? {
+    ok: true,
     username: tikTokUsername,
-    followers: found?.followers ?? null,
-    raw_field: found?.path || null,
+    followers: selected.found.followers,
+    raw_field: selected.found.path,
+    source: selected.attempt.name,
     cached: false,
     fetched_at: new Date(now).toISOString(),
-    profile: compactTikTokProfilePayload(payload)
+    profile: compactTikTokProfilePayload(selected.attempt.payload),
+    attempts
+  } : {
+    ok: false,
+    username: tikTokUsername,
+    followers: null,
+    raw_field: null,
+    cached: false,
+    fetched_at: new Date(now).toISOString(),
+    error: "No pude obtener seguidores con los endpoints probados. Verifica que TIKTOK_USERNAME sea el usuario exacto o agrega TIKTOK_USER_ID/TIKTOK_SEC_USER_ID.",
+    attempts
   };
-  if (!found) {
-    result.error = "No encontre el contador de seguidores en la respuesta de TikHub";
-    result.response_top_level_keys = Object.keys(payload || {});
-  }
 
   tiktokFollowersCache = {
     username: tikTokUsername,
     fetched_at_ms: now,
     payload: result
   };
-  return { status: found ? 200 : 502, payload: result };
+  return { status: selected ? 200 : 502, payload: result };
 }
 
 function hashPassword(password) {
