@@ -463,7 +463,7 @@ function closePrizeModal() {
 function updatePrizeModal(prize, isSpinning) {
   const nextAttempt = Math.min(state.maxPrizeAttempts, state.prizeAttempts + 1);
   const attemptsLeftAfterThis = Math.max(0, state.maxPrizeAttempts - nextAttempt);
-  const canKeepPrize = state.isRevealed && !isSpinning && state.prizeAttempts < state.maxPrizeAttempts;
+  const canKeepPrize = state.isRevealed && !isSpinning;
   const canRetry = state.isRevealed && !isSpinning && state.prizeAttempts < state.maxPrizeAttempts;
   const tiktokMission = getSocialMission("tiktok_follow");
   const canStartTikTok = state.isRevealed && !isSpinning && state.prizeAttempts >= state.maxPrizeAttempts && tiktokMission?.status !== "completed" && tiktokMission?.status !== "review";
@@ -488,7 +488,9 @@ function updatePrizeModal(prize, isSpinning) {
     : attemptsLeftAfterThis > 0
       ? `Puedes intentar ${attemptsLeftAfterThis} vez mas o quedarte con este premio.`
       : canStartTikTok
-        ? "Te quedaste sin intentos. Sigue nuestro TikTok y verifica la tarea para desbloquear 1 intento extra."
+        ? (tiktokMission?.status === "pending"
+          ? "Cuando ya sigas nuestra cuenta, toca verificar para desbloquear 1 intento extra."
+          : "Te quedaste sin intentos. Sigue nuestro TikTok y verifica la tarea para desbloquear 1 intento extra.")
         : "Este es tu premio final. Completa los referidos para reclamarlo.";
 }
 
@@ -521,6 +523,18 @@ async function startTikTokTask() {
         window.location.href = result.profile_url;
       }
     }
+    state.socialMissions = [
+      ...state.socialMissions.filter((mission) => mission.mission_key !== "tiktok_follow"),
+      {
+        mission_key: "tiktok_follow",
+        status: result.status || "pending",
+        followers_before: result.followers_before,
+        reward_type: "extra_attempt",
+        reward_value: 1
+      }
+    ];
+    updatePrizeModal(state.selectedPrize, false);
+    renderMissions();
     showToast(result.message || "Tarea TikTok iniciada.");
     await loadState();
   } catch (error) {
@@ -543,6 +557,10 @@ async function verifyTikTokTask() {
       els.prizeModal.hidden = false;
       els.prizeModal.classList.add("show");
       updatePrizeModal(state.selectedPrize, false);
+      els.modalPrizeHint.textContent = "Listo. Ganaste 1 intento extra. Puedes intentar de nuevo ahora o quedarte con tu premio.";
+      els.retryPrizeButton.hidden = false;
+      delete els.retryPrizeButton.dataset.extraTask;
+      els.retryPrizeButton.innerHTML = `<i class="fa-solid fa-rotate-right"></i> Usar intento extra`;
     }
   } catch (error) {
     showToast(error.message);
