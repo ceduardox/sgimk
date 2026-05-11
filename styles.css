@@ -516,6 +516,48 @@ button {
   font-weight: 900;
 }
 
+.mission-row.muted-mission {
+  opacity: 0.72;
+}
+
+.mission-row.mission-feature {
+  grid-template-columns: 42px 1fr auto;
+  border: 1px solid rgba(25, 221, 255, 0.32);
+  background:
+    radial-gradient(circle at 16% 30%, rgba(25, 221, 255, 0.14), transparent 40%),
+    rgba(255, 255, 255, 0.08);
+}
+
+.mission-row.mission-feature.pending {
+  border-color: rgba(255, 212, 59, 0.58);
+}
+
+.mission-row.mission-feature.completed {
+  border-color: rgba(40, 223, 85, 0.62);
+  background: linear-gradient(180deg, rgba(40, 223, 85, 0.16), rgba(255, 255, 255, 0.08));
+}
+
+.mission-row.mission-feature.review {
+  border-color: rgba(255, 122, 0, 0.62);
+}
+
+.mission-actions {
+  display: grid;
+  justify-items: end;
+}
+
+.mission-actions button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  color: white;
+  background: linear-gradient(180deg, #19ddff, #006dff);
+  font-size: 0.78rem;
+  font-weight: 900;
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.16), 0 5px 12px rgba(0, 0, 0, 0.2);
+}
+
 .level-card.active {
   border: 1px solid rgba(255, 212, 59, 0.48);
 }

@@ -369,7 +369,7 @@ function createTikHubProfileEndpoints() {
   return endpoints;
 }
 
-async function fetchTikTokFollowers() {
+async function fetchTikTokFollowers(options = {}) {
   if (!tikHubApiKey) {
     return { status: 503, payload: { ok: false, error: "Falta TIKHUB_API_KEY en Railway" } };
   }
@@ -379,6 +379,7 @@ async function fetchTikTokFollowers() {
 
   const now = Date.now();
   if (
+    !options.force &&
     tiktokFollowersCache &&
     tiktokFollowersCache.username === tikTokUsername &&
     now - tiktokFollowersCache.fetched_at_ms < tiktokFollowersCacheMs
@@ -442,6 +443,164 @@ async function fetchTikTokFollowers() {
     payload: result
   };
   return { status: selected ? 200 : 502, payload: result };
+}
+
+function tiktokProfileUrl() {
+  return tikTokUsername ? `https://www.tiktok.com/@${encodeURIComponent(tikTokUsername)}` : "https://www.tiktok.com/";
+}
+
+async function getTikTokMission(customerId) {
+  const result = await query(
+    "select * from social_missions where customer_id = $1 and mission_key = 'tiktok_follow' limit 1",
+    [customerId]
+  );
+  return result.rows[0] || null;
+}
+
+async function startTikTokMission(customerId) {
+  const current = await getTikTokMission(customerId);
+  if (current?.status === "completed") {
+    return {
+      status: 200,
+      payload: {
+        ok: true,
+        status: "completed",
+        already_completed: true,
+        profile_url: tiktokProfileUrl(),
+        message: "Ya ganaste este intento extra."
+      }
+    };
+  }
+
+  const followers = await fetchTikTokFollowers({ force: true });
+  if (!followers.payload.ok) {
+    return {
+      status: 502,
+      payload: {
+        ok: false,
+        error: "No pude leer seguidores de TikTok para iniciar la tarea",
+        details: followers.payload
+      }
+    };
+  }
+
+  const result = await query(
+    `insert into social_missions
+      (customer_id, mission_key, status, followers_before, followers_after, reward_type, reward_value, started_at, updated_at)
+     values ($1, 'tiktok_follow', 'pending', $2, null, 'extra_attempt', 1, now(), now())
+     on conflict (customer_id, mission_key) do update set
+       status = 'pending',
+       followers_before = excluded.followers_before,
+       followers_after = null,
+       reward_type = 'extra_attempt',
+       reward_value = 1,
+       started_at = now(),
+       verified_at = null,
+       updated_at = now()
+     returning *`,
+    [customerId, followers.payload.followers]
+  );
+
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      status: result.rows[0].status,
+      followers_before: result.rows[0].followers_before,
+      profile_url: tiktokProfileUrl(),
+      expires_in_seconds: 300,
+      message: "Tarea iniciada. Sigue TikTok y vuelve a verificar."
+    }
+  };
+}
+
+async function verifyTikTokMission(customerId) {
+  const mission = await getTikTokMission(customerId);
+  if (!mission || mission.status !== "pending") {
+    return { status: 400, payload: { ok: false, error: "Primero inicia la tarea de TikTok" } };
+  }
+
+  const followers = await fetchTikTokFollowers({ force: true });
+  if (!followers.payload.ok) {
+    return {
+      status: 502,
+      payload: {
+        ok: false,
+        error: "No pude verificar seguidores de TikTok",
+        details: followers.payload
+      }
+    };
+  }
+
+  const before = Number(mission.followers_before || 0);
+  const after = Number(followers.payload.followers || 0);
+  if (after === before + 1) {
+    const clientResult = await query(
+      `update social_missions
+       set status = 'completed',
+           followers_after = $1,
+           verified_at = now(),
+           updated_at = now()
+       where customer_id = $2 and mission_key = 'tiktok_follow' and status = 'pending'
+       returning *`,
+      [after, customerId]
+    );
+    if (clientResult.rowCount) {
+      await query(
+        "update customers set extra_prize_attempts = greatest(extra_prize_attempts, 1) where id = $1",
+        [customerId]
+      );
+    }
+    return {
+      status: 200,
+      payload: {
+        ok: true,
+        status: "completed",
+        followers_before: before,
+        followers_after: after,
+        extra_attempts_added: 1,
+        message: "TikTok verificado. Ganaste 1 intento extra."
+      }
+    };
+  }
+
+  if (after > before + 1) {
+    const result = await query(
+      `update social_missions
+       set status = 'review',
+           followers_after = $1,
+           verified_at = now(),
+           updated_at = now()
+       where customer_id = $2 and mission_key = 'tiktok_follow'
+       returning *`,
+      [after, customerId]
+    );
+    return {
+      status: 202,
+      payload: {
+        ok: false,
+        status: result.rows[0]?.status || "review",
+        followers_before: before,
+        followers_after: after,
+        message: "Subieron varios seguidores al mismo tiempo. Quedo en revision para evitar asignarlo mal."
+      }
+    };
+  }
+
+  await query(
+    "update social_missions set followers_after = $1, updated_at = now() where customer_id = $2 and mission_key = 'tiktok_follow'",
+    [after, customerId]
+  );
+  return {
+    status: 200,
+    payload: {
+      ok: false,
+      status: "pending",
+      followers_before: before,
+      followers_after: after,
+      message: "Aun no detecto un nuevo seguidor. Espera unos segundos y verifica otra vez."
+    }
+  };
 }
 
 function hashPassword(password) {
@@ -651,6 +810,20 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/social/tiktok/start") {
+    const { customerId } = await ensureRequestCustomer(req, res);
+    const result = await startTikTokMission(customerId);
+    sendJson(res, result.status, result.payload);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/social/tiktok/verify") {
+    const { customerId } = await ensureRequestCustomer(req, res);
+    const result = await verifyTikTokMission(customerId);
+    sendJson(res, result.status, result.payload);
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/admin/state") {
     if (!requireAdmin(req, res)) return;
     const customersResult = await query(
@@ -732,12 +905,13 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/prizes/reveal") {
     const { customerId } = await ensureRequestCustomer(req, res);
     const customer = await query(
-      "select prize_attempts from customers where id = $1",
+      "select prize_attempts, extra_prize_attempts from customers where id = $1",
       [customerId]
     );
     const attempts = Number(customer.rows[0]?.prize_attempts || 0);
-    if (attempts >= 3) {
-      sendJson(res, 400, { error: "Ya usaste tus 3 intentos" });
+    const maxAttempts = 3 + Number(customer.rows[0]?.extra_prize_attempts || 0);
+    if (attempts >= maxAttempts) {
+      sendJson(res, 400, { error: `Ya usaste tus ${maxAttempts} intentos` });
       return;
     }
 
@@ -758,7 +932,7 @@ async function handleApi(req, res) {
        returning prize_attempts`,
       [prize.id, prize.name, prize.image, customerId]
     );
-    sendJson(res, 200, { prize, prize_attempts: result.rows[0].prize_attempts, max_prize_attempts: 3 });
+    sendJson(res, 200, { prize, prize_attempts: result.rows[0].prize_attempts, max_prize_attempts: maxAttempts });
     return;
   }
 
@@ -766,7 +940,7 @@ async function handleApi(req, res) {
     const { customerId } = await ensureRequestCustomer(req, res);
     const result = await query(
       `update customers
-       set prize_attempts = 3
+       set prize_attempts = 3 + extra_prize_attempts
        where id = $1 and selected_prize_id is not null
        returning selected_prize_id, selected_prize_name, selected_prize_image, prize_attempts`,
       [customerId]
@@ -783,7 +957,7 @@ async function handleApi(req, res) {
         level: "bronce"
       },
       prize_attempts: result.rows[0].prize_attempts,
-      max_prize_attempts: 3
+      max_prize_attempts: result.rows[0].prize_attempts
     });
     return;
   }
@@ -796,7 +970,7 @@ async function handleApi(req, res) {
     }
 
     await query("truncate table reward_claims, referrals, device_fingerprints, customers restart identity cascade");
-    const counts = await getTableCounts(["customers", "referrals", "reward_claims", "device_fingerprints", "rewards", "missions"]);
+    const counts = await getTableCounts(["customers", "referrals", "reward_claims", "device_fingerprints", "social_missions", "rewards", "missions"]);
     sendJson(res, 200, { ok: true, counts });
     return;
   }

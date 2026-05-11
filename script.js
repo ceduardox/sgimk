@@ -10,6 +10,7 @@ const state = {
   goal: 3,
   maxPrizeAttempts: 3,
   prizeAttempts: 0,
+  socialMissions: [],
   selectedPrize: null,
   prizePool: productPool,
   isRevealed: false,
@@ -179,6 +180,7 @@ function render() {
   const progressDegrees = Math.min(360, Math.round((Math.min(count, state.goal) / state.goal) * 360));
   const attemptsLeft = Math.max(0, state.maxPrizeAttempts - state.prizeAttempts);
   const lockedPrize = state.isRevealed && attemptsLeft === 0;
+  const tiktokMission = getSocialMission("tiktok_follow");
 
   renderPrizeVisual(els.productIcon, prize);
   els.productName.textContent = state.isRevealed ? prize.name : "Premio oculto";
@@ -193,8 +195,8 @@ function render() {
   els.revealButton.style.setProperty("--progress", `${progressDegrees}deg`);
   els.revealButton.disabled = lockedPrize;
   if (lockedPrize) {
-    els.revealButtonText.textContent = `${Math.min(count, state.goal)}/${state.goal}`;
-    els.revealButtonHint.textContent = complete ? "premio listo" : "referidos";
+    els.revealButtonText.textContent = tiktokMission?.status === "pending" ? "VERIFICAR" : "EXTRA";
+    els.revealButtonHint.textContent = tiktokMission?.status === "completed" ? "ganado" : "TikTok";
   } else if (state.isRevealed) {
     els.revealButtonText.textContent = `INTENTO ${state.prizeAttempts + 1}`;
     els.revealButtonHint.textContent = `te quedan ${attemptsLeft}`;
@@ -302,13 +304,48 @@ function renderLevels() {
 }
 
 function renderMissions() {
-  els.missionRows.innerHTML = state.missions.map((mission) => `
-    <article class="mission-row">
-      <div class="mission-icon"><i class="${mission.icon_class}"></i></div>
-      <div><strong>${mission.title}</strong><span>+${mission.reward_points} energia</span></div>
-      <b class="status-pill">${mission.is_completed ? "OK" : "Pendiente"}</b>
-    </article>
-  `).join("");
+  const tiktokMission = getSocialMission("tiktok_follow");
+  const tiktokStatus = tiktokMission?.status || "idle";
+  const rows = state.missions.map((mission) => {
+    if (Number(mission.id) === 2) {
+      return `
+        <article class="mission-row mission-feature ${tiktokStatus}">
+          <div class="mission-icon"><i class="fa-brands fa-tiktok"></i></div>
+          <div>
+            <strong>Seguir TikTok</strong>
+            <span>${tiktokMissionText(tiktokStatus)}</span>
+          </div>
+          <div class="mission-actions">
+            ${tiktokStatus === "completed"
+              ? `<b class="status-pill">+1 intento</b>`
+              : tiktokStatus === "pending"
+                ? `<button type="button" data-tiktok-action="verify">Ya segui</button>`
+                : `<button type="button" data-tiktok-action="start">Ganar intento</button>`}
+          </div>
+        </article>
+      `;
+    }
+
+    return `
+      <article class="mission-row muted-mission">
+        <div class="mission-icon"><i class="${mission.icon_class}"></i></div>
+        <div><strong>${mission.title}</strong><span>Proximamente para energia extra.</span></div>
+        <b class="status-pill">Pronto</b>
+      </article>
+    `;
+  });
+  els.missionRows.innerHTML = rows.join("");
+}
+
+function getSocialMission(key) {
+  return state.socialMissions.find((mission) => mission.mission_key === key);
+}
+
+function tiktokMissionText(status) {
+  if (status === "completed") return "Verificado. Tu rueda gano 1 intento extra.";
+  if (status === "pending") return "Abre TikTok, sigue la cuenta y vuelve a verificar.";
+  if (status === "review") return "En revision porque subieron varios seguidores juntos.";
+  return "Cuando se acaben tus intentos, esta tarea te da 1 intento extra.";
 }
 
 function setupReferralLanding() {
@@ -330,7 +367,17 @@ function getPublicReferralCode() {
 
 async function revealPrize() {
   if (state.prizeAttempts >= state.maxPrizeAttempts) {
-    showToast("Ya usaste tus 3 intentos. Comparte tu link para reclamar.");
+    const tiktokMission = getSocialMission("tiktok_follow");
+    if (tiktokMission?.status === "pending") {
+      await verifyTikTokTask();
+      return;
+    }
+    if (tiktokMission?.status !== "completed" && tiktokMission?.status !== "review") {
+      openPrizeModal();
+      updatePrizeModal(state.selectedPrize, false);
+      return;
+    }
+    showToast(`Ya usaste tus ${state.maxPrizeAttempts} intentos. Comparte tu link para reclamar.`);
     return;
   }
 
@@ -350,6 +397,7 @@ async function revealPrize() {
     });
     result = await response.json();
     if (!response.ok) throw new Error(result.error || "No se pudo revelar premio");
+    state.maxPrizeAttempts = Number(result.max_prize_attempts || state.maxPrizeAttempts);
   } catch (error) {
     els.productWindow.classList.remove("spinning");
     closePrizeModal();
@@ -373,6 +421,7 @@ async function revealPrize() {
   state.selectedPrize = result.prize;
   state.isRevealed = true;
   state.prizeAttempts = result.prize_attempts;
+  state.maxPrizeAttempts = Number(result.max_prize_attempts || state.maxPrizeAttempts);
   if (state.prizeAttempts === 1) {
     convertPendingReferral();
   }
@@ -410,23 +459,88 @@ function updatePrizeModal(prize, isSpinning) {
   const attemptsLeftAfterThis = Math.max(0, state.maxPrizeAttempts - nextAttempt);
   const canKeepPrize = state.isRevealed && !isSpinning && state.prizeAttempts < state.maxPrizeAttempts;
   const canRetry = state.isRevealed && !isSpinning && state.prizeAttempts < state.maxPrizeAttempts;
+  const tiktokMission = getSocialMission("tiktok_follow");
+  const canStartTikTok = state.isRevealed && !isSpinning && state.prizeAttempts >= state.maxPrizeAttempts && tiktokMission?.status !== "completed" && tiktokMission?.status !== "review";
   els.attemptCounter.textContent = `Intento ${Math.max(1, state.prizeAttempts || nextAttempt)} de ${state.maxPrizeAttempts}`;
   els.modalPrizeImage.src = normalizePrizeImage(prize.image);
   els.modalPrizeImage.alt = prize.name;
   els.modalPrizeName.textContent = isSpinning ? "Buscando premio..." : prize.name;
   els.modalPrizeStage.classList.toggle("spinning", isSpinning);
   els.keepPrizeButton.hidden = !canKeepPrize;
-  els.retryPrizeButton.hidden = !canRetry;
+  els.retryPrizeButton.hidden = !(canRetry || canStartTikTok);
+  if (canStartTikTok) {
+    els.retryPrizeButton.dataset.extraTask = tiktokMission?.status === "pending" ? "verify-tiktok" : "start-tiktok";
+    els.retryPrizeButton.innerHTML = tiktokMission?.status === "pending"
+      ? `<i class="fa-solid fa-circle-check"></i> Ya segui TikTok`
+      : `<i class="fa-brands fa-tiktok"></i> Ganar 1 intento extra`;
+  } else {
+    delete els.retryPrizeButton.dataset.extraTask;
+    els.retryPrizeButton.innerHTML = `<i class="fa-solid fa-rotate-right"></i> Intentar de nuevo`;
+  }
   els.modalPrizeHint.textContent = isSpinning
     ? `Intento ${state.prizeAttempts + 1} de ${state.maxPrizeAttempts}. No cierres todavia.`
     : attemptsLeftAfterThis > 0
       ? `Puedes intentar ${attemptsLeftAfterThis} vez mas o quedarte con este premio.`
-      : "Este es tu premio final. Completa los referidos para reclamarlo.";
+      : canStartTikTok
+        ? "Te quedaste sin intentos. Sigue nuestro TikTok y verifica la tarea para desbloquear 1 intento extra."
+        : "Este es tu premio final. Completa los referidos para reclamarlo.";
 }
 
 function retryPrizeFromModal() {
+  if (els.retryPrizeButton.dataset.extraTask === "start-tiktok") {
+    startTikTokTask();
+    return;
+  }
+  if (els.retryPrizeButton.dataset.extraTask === "verify-tiktok") {
+    verifyTikTokTask();
+    return;
+  }
   if (state.prizeAttempts >= state.maxPrizeAttempts) return;
   revealPrize();
+}
+
+async function startTikTokTask() {
+  const tiktokWindow = window.open("about:blank", "_blank");
+  try {
+    const response = await fetch("/api/social/tiktok/start", {
+      method: "POST",
+      headers: { "content-type": "application/json" }
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "No se pudo iniciar la tarea");
+    if (result.profile_url) {
+      if (tiktokWindow) {
+        tiktokWindow.location.href = result.profile_url;
+      } else {
+        window.location.href = result.profile_url;
+      }
+    }
+    showToast(result.message || "Tarea TikTok iniciada.");
+    await loadState();
+  } catch (error) {
+    if (tiktokWindow) tiktokWindow.close();
+    showToast(error.message);
+  }
+}
+
+async function verifyTikTokTask() {
+  try {
+    const response = await fetch("/api/social/tiktok/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json" }
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || result.message || "No se pudo verificar");
+    showToast(result.message || "TikTok verificado.");
+    await loadState({ animate: result.status === "completed" });
+    if (result.status === "completed") {
+      closePrizeModal();
+      openPrizeModal();
+      updatePrizeModal(state.selectedPrize, false);
+    }
+  } catch (error) {
+    showToast(error.message);
+  }
 }
 
 function keepCurrentPrize() {
@@ -440,6 +554,7 @@ function keepCurrentPrize() {
       if (!response.ok) throw new Error(result.error || "No se pudo guardar el premio");
       state.selectedPrize = result.prize;
       state.prizeAttempts = result.prize_attempts;
+      state.maxPrizeAttempts = Number(result.max_prize_attempts || state.maxPrizeAttempts);
       updatePrizeModal(state.selectedPrize, false);
       closePrizeModal();
       render();
@@ -551,7 +666,9 @@ async function loadState(options = {}) {
     state.rewards = data.rewards;
     state.currentReward = data.currentReward;
     state.missions = data.missions.filter((mission) => mission.is_active);
+    state.socialMissions = data.socialMissions || [];
     state.goal = data.currentReward?.required_referrals || 3;
+    state.maxPrizeAttempts = Number(data.customer.max_prize_attempts || data.max_prize_attempts || 3);
     state.prizeAttempts = Number(data.customer.prize_attempts || 0);
     state.selectedPrize = data.customer.selected_prize || null;
     state.isRevealed = Boolean(state.selectedPrize);
@@ -795,6 +912,12 @@ els.captchaRefreshButton.addEventListener("click", loadCaptcha);
 els.captchaOptions.addEventListener("click", (event) => {
   const button = event.target.closest("[data-captcha-answer]");
   if (button) selectCaptchaAnswer(button);
+});
+els.missionRows.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-tiktok-action]");
+  if (!button) return;
+  if (button.dataset.tiktokAction === "start") startTikTokTask();
+  if (button.dataset.tiktokAction === "verify") verifyTikTokTask();
 });
 document.querySelectorAll("[data-password-toggle]").forEach((button) => {
   button.addEventListener("click", () => togglePasswordVisibility(button));

@@ -15,6 +15,7 @@ create table if not exists customers (
   selected_prize_name text,
   selected_prize_image text,
   prize_attempts integer not null default 0,
+  extra_prize_attempts integer not null default 0,
   avatar_url text,
   created_at timestamptz not null default now()
 );
@@ -32,6 +33,7 @@ alter table customers add column if not exists selected_prize_id text;
 alter table customers add column if not exists selected_prize_name text;
 alter table customers add column if not exists selected_prize_image text;
 alter table customers add column if not exists prize_attempts integer not null default 0;
+alter table customers add column if not exists extra_prize_attempts integer not null default 0;
 
 create table if not exists referrals (
   id bigserial primary key,
@@ -109,6 +111,30 @@ create table if not exists missions (
   is_completed boolean not null default true
 );
 
+create table if not exists social_missions (
+  id bigserial primary key,
+  customer_id bigint not null references customers(id) on delete cascade,
+  mission_key text not null,
+  status text not null default 'idle',
+  followers_before integer,
+  followers_after integer,
+  reward_type text,
+  reward_value integer not null default 0,
+  started_at timestamptz,
+  verified_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (customer_id, mission_key)
+);
+
+alter table social_missions add column if not exists followers_before integer;
+alter table social_missions add column if not exists followers_after integer;
+alter table social_missions add column if not exists reward_type text;
+alter table social_missions add column if not exists reward_value integer not null default 0;
+alter table social_missions add column if not exists started_at timestamptz;
+alter table social_missions add column if not exists verified_at timestamptz;
+alter table social_missions add column if not exists updated_at timestamptz not null default now();
+
 insert into rewards (rank_number, name, prize_name, required_referrals, icon_class, is_locked)
 values
   (1, 'Rango 1', 'Pasta dental', 3, 'fa-solid fa-tooth', false),
@@ -124,10 +150,10 @@ on conflict (rank_number) do update set
 
 insert into missions (id, title, reward_points, icon_class, is_active, is_completed)
 values
-  (1, 'Seguir en Facebook', 50, 'fa-brands fa-facebook-f', true, true),
-  (2, 'Seguir en TikTok', 50, 'fa-brands fa-tiktok', true, true),
-  (3, 'Seguir en Instagram', 50, 'fa-brands fa-instagram', true, true),
-  (4, 'Tus afiliados llegan a rangos', 100, 'fa-solid fa-users', true, true)
+  (1, 'Seguir en Facebook', 50, 'fa-brands fa-facebook-f', true, false),
+  (2, 'Seguir en TikTok', 1, 'fa-brands fa-tiktok', true, false),
+  (3, 'Seguir en Instagram', 50, 'fa-brands fa-instagram', true, false),
+  (4, 'Tus afiliados llegan a rangos', 100, 'fa-solid fa-users', true, false)
 on conflict (id) do update set
   title = excluded.title,
   reward_points = excluded.reward_points,

@@ -44,7 +44,7 @@ async function ensureCustomerForDevice(deviceId) {
 async function getClubState(customerId = 1) {
   const client = await pool.connect();
   try {
-    const [customer, referrals, validReferrals, rewards, missions] = await Promise.all([
+    const [customer, referrals, validReferrals, rewards, missions, socialMissions] = await Promise.all([
       client.query("select * from customers where id = $1", [customerId]),
       client.query(
         "select * from referrals where customer_id = $1 order by created_at desc",
@@ -55,7 +55,8 @@ async function getClubState(customerId = 1) {
         [customerId]
       ),
       client.query("select * from rewards order by required_referrals asc"),
-      client.query("select * from missions order by id asc")
+      client.query("select * from missions order by id asc"),
+      client.query("select * from social_missions where customer_id = $1 order by created_at desc", [customerId])
     ]);
 
     if (!customer.rows[0]) {
@@ -66,6 +67,7 @@ async function getClubState(customerId = 1) {
     const currentReward = rewards.rows.find((reward) => referralCount <= reward.required_referrals) || rewards.rows[rewards.rows.length - 1];
     const customerData = { ...customer.rows[0] };
     delete customerData.password_hash;
+    customerData.max_prize_attempts = 3 + Number(customerData.extra_prize_attempts || 0);
 
     return {
       customer: {
@@ -82,7 +84,8 @@ async function getClubState(customerId = 1) {
       referralCount,
       currentReward,
       rewards: rewards.rows,
-      missions: missions.rows
+      missions: missions.rows,
+      socialMissions: socialMissions.rows
     };
   } finally {
     client.release();
