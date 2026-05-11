@@ -575,7 +575,7 @@ async function verifyTikTokMission(customerId) {
 
   const before = Number(mission.followers_before || 0);
   const after = Number(followers.payload.followers || 0);
-  if (after === before + 1) {
+  if (after > before) {
     const clientResult = await query(
       `update social_missions
        set status = 'completed',
@@ -600,30 +600,7 @@ async function verifyTikTokMission(customerId) {
         followers_before: before,
         followers_after: after,
         extra_attempts_added: 1,
-        message: "TikTok verificado. Ganaste 1 intento extra."
-      }
-    };
-  }
-
-  if (after > before + 1) {
-    const result = await query(
-      `update social_missions
-       set status = 'review',
-           followers_after = $1,
-           verified_at = now(),
-           updated_at = now()
-       where customer_id = $2 and mission_key = 'tiktok_follow'
-       returning *`,
-      [after, customerId]
-    );
-    return {
-      status: 202,
-      payload: {
-        ok: false,
-        status: result.rows[0]?.status || "review",
-        followers_before: before,
-        followers_after: after,
-        message: "Subieron varios seguidores al mismo tiempo. Quedo en revision para evitar asignarlo mal."
+        message: `TikTok verificado (${before} -> ${after}). Ganaste 1 intento extra.`
       }
     };
   }
@@ -639,7 +616,7 @@ async function verifyTikTokMission(customerId) {
       status: "pending",
       followers_before: before,
       followers_after: after,
-      message: "Aun no detecto un nuevo seguidor. Espera unos segundos y verifica otra vez."
+      message: `Aun no detecto subida en TikTok (${before} -> ${after}). Espera 30 segundos y verifica otra vez. Si ya seguias la cuenta antes, TikTok no subira el contador.`
     }
   };
 }

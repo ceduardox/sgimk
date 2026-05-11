@@ -571,6 +571,8 @@ async function startTikTokTask() {
 
 async function verifyTikTokTask() {
   try {
+    els.retryPrizeButton.disabled = true;
+    els.retryPrizeButton.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Verificando`;
     const response = await fetch("/api/social/tiktok/verify", {
       method: "POST",
       headers: { "content-type": "application/json" }
@@ -586,9 +588,21 @@ async function verifyTikTokTask() {
       els.modalPrizeHint.textContent = "Listo. Ganaste 1 intento extra. Puedes intentar de nuevo ahora o quedarte con tu premio.";
       els.retryPrizeButton.hidden = false;
       delete els.retryPrizeButton.dataset.extraTask;
+      els.retryPrizeButton.disabled = false;
       els.retryPrizeButton.innerHTML = `<i class="fa-solid fa-rotate-right"></i> Usar intento extra`;
+    } else {
+      const before = Number(result.followers_before ?? 0);
+      const after = Number(result.followers_after ?? 0);
+      els.modalPrizeHint.textContent = result.message || `Todavia no detecto subida (${before} -> ${after}). Espera unos segundos y verifica de nuevo.`;
+      els.retryPrizeButton.hidden = false;
+      els.retryPrizeButton.disabled = false;
+      els.retryPrizeButton.dataset.extraTask = "verify-tiktok";
+      els.retryPrizeButton.innerHTML = `<i class="fa-solid fa-circle-check"></i> Verificar otra vez`;
     }
   } catch (error) {
+    els.retryPrizeButton.disabled = false;
+    els.retryPrizeButton.dataset.extraTask = "verify-tiktok";
+    els.retryPrizeButton.innerHTML = `<i class="fa-solid fa-circle-check"></i> Verificar otra vez`;
     showToast(error.message);
   }
 }
