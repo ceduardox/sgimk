@@ -66,38 +66,9 @@ button {
 
 .game-header {
   display: grid;
-  grid-template-columns: 44px 1fr 58px;
-  gap: 10px;
+  justify-items: center;
   align-items: center;
   min-height: 62px;
-}
-
-.icon-button,
-.admin-pill {
-  border: 0;
-  color: white;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.08), 0 8px 18px rgba(0, 0, 0, 0.24);
-}
-
-.icon-button {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  font-size: 1.4rem;
-}
-
-.admin-pill {
-  display: grid;
-  place-items: center;
-  min-height: 34px;
-  border-radius: 999px;
-  color: #fff;
-  text-decoration: none;
-  font-size: 0.78rem;
-  font-weight: 900;
 }
 
 .brand-lockup {
