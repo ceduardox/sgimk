@@ -25,6 +25,7 @@ const els = {
   levelName: document.querySelector("#levelName"),
   productName: document.querySelector("#productName"),
   productWindow: document.querySelector(".product-window"),
+  placePhoto: document.querySelector(".place-photo"),
   revealButton: document.querySelector("#revealButton"),
   revealButtonText: document.querySelector("#revealButtonText"),
   revealButtonHint: document.querySelector("#revealButtonHint"),
@@ -786,13 +787,21 @@ function keepCurrentPrize() {
 function openImageViewer() {
   const prize = resolvePrizeForDisplay(state.selectedPrize);
   if (!state.isRevealed || !prize?.image) return;
+  openViewerImage(prize.name, normalizePrizeImage(prize.image));
+}
+
+function openViewerImage(name, src) {
   viewerZoom = 1;
-  els.viewerPrizeName.textContent = prize.name;
-  els.viewerPrizeImage.src = normalizePrizeImage(prize.image);
-  els.viewerPrizeImage.alt = prize.name;
+  els.viewerPrizeName.textContent = name;
+  els.viewerPrizeImage.src = src;
+  els.viewerPrizeImage.alt = name;
   updateViewerZoom();
   els.imageViewer.hidden = false;
   els.imageViewer.classList.add("show");
+}
+
+function openPlaceImageViewer() {
+  openViewerImage("Dialcruz Importaciones + SGI Market", "dialcruz.png");
 }
 
 function closeImageViewer() {
@@ -1156,6 +1165,7 @@ els.closePrizeModal.addEventListener("click", closePrizeModal);
 els.retryPrizeButton.addEventListener("click", retryPrizeFromModal);
 els.keepPrizeButton.addEventListener("click", keepCurrentPrize);
 els.productWindow.addEventListener("click", openImageViewer);
+els.placePhoto.addEventListener("click", openPlaceImageViewer);
 els.closeImageViewer.addEventListener("click", closeImageViewer);
 els.zoomOutButton.addEventListener("click", () => changeViewerZoom(-0.25));
 els.zoomInButton.addEventListener("click", () => changeViewerZoom(0.25));
