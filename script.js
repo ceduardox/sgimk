@@ -1302,8 +1302,18 @@ document.querySelectorAll("[data-nav]").forEach((button) => {
 });
 document.addEventListener("error", handlePrizeImageError, true);
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 loadPrizePool().then(() => {
   render();
+  const initialView = new URLSearchParams(window.location.search).get("view");
+  if (initialView && els.viewBlocks.some((block) => block.dataset.view === initialView)) {
+    setView(initialView);
+  }
 });
 initDevice();
 loadState();

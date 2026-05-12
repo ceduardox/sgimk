@@ -1,0 +1,41 @@
+{
+  "name": "SGI Market Club de Referidos",
+  "short_name": "SGI Market",
+  "description": "Revela premios, comparte tu link y avanza por niveles con SGI Market.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#061032",
+  "theme_color": "#061032",
+  "lang": "es",
+  "categories": ["shopping", "games", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icono.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icono.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Revelar premio",
+      "short_name": "Premio",
+      "url": "/",
+      "icons": [{ "src": "/icono.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Lugar de retiro",
+      "short_name": "Lugar",
+      "url": "/?view=place",
+      "icons": [{ "src": "/icono.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
